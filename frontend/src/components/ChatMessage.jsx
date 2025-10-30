@@ -56,7 +56,7 @@ const ChatMessage = ({ message }) => {
                 ),
               }}
             >
-              {typeof message.text === 'string' ? message.text : String(message.text)}
+              {message.text ? String(message.text) : 'Loading...'}
             </ReactMarkdown>
           </div>
         )}

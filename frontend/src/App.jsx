@@ -121,26 +121,37 @@ function App() {
                 </div>
               )}
             </div>
+
+            {/* Chat Input - Prominent position when no messages */}
+            <div className="mb-6">
+              <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+            </div>
           </div>
         )}
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto px-6 pb-4">
-          {messages.map(message => (
-            <ChatMessage key={message.id} message={message} />
-          ))}
-          
-          {isLoading && (
-            <div className="flex justify-center py-4">
-              <LoadingSpinner />
+        {messages.length > 0 && (
+          <div className="flex-1 flex flex-col">
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {messages.map(message => (
+                <ChatMessage key={message.id} message={message} />
+              ))}
+              
+              {isLoading && (
+                <div className="flex justify-center py-4">
+                  <LoadingSpinner />
+                </div>
+              )}
+              
+              <div ref={messagesEndRef} />
             </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </div>
 
-        {/* Chat Input */}
-        <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+            {/* Chat Input - After messages */}
+            <div className="px-6 pb-4">
+              <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
