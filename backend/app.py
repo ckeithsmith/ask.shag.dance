@@ -16,9 +16,13 @@ CORS(app)
 def initialize_data():
     """Load all data when the app starts"""
     print("🚀 Initializing CSA Archive data...")
-    data_loader.load_all_data()
-    chat_handler.initialize_client()
-    print("✅ Application ready!")
+    try:
+        data_loader.load_all_data()
+        chat_handler.initialize_client()
+        print("✅ Application ready!")
+    except Exception as e:
+        print(f"⚠️ Initialization warning: {e}")
+        print("🚀 Application starting in degraded mode...")
 
 # Call initialization
 initialize_data()
