@@ -1,0 +1,13 @@
+{
+  "name": "csa-shag-archive-app",
+  "version": "1.0.0",
+  "description": "CSA Shag Archive Q&A Application",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "heroku-postbuild": "npm run build"
+  },
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
+  }
+}
