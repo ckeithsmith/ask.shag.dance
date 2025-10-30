@@ -9,6 +9,12 @@ class DataLoader:
         self.pdf_content = {}
         self.knowledge_base = ""
         
+        # Get the data directory path relative to this file
+        # This ensures it works whether running from backend/ or repo root
+        current_file_dir = Path(__file__).parent
+        self.data_dir = current_file_dir.parent / "data"
+        print(f"🔍 Data directory path: {self.data_dir.absolute()}")
+        
     def load_all_data(self):
         """Load CSV and extract all PDF content"""
         self.load_csv()
@@ -17,8 +23,13 @@ class DataLoader:
         
     def load_csv(self):
         """Load the main contest archive CSV"""
-        csv_path = Path("data/Shaggy_Shag_Archives_Final.csv")
+        csv_path = self.data_dir / "Shaggy_Shag_Archives_Final.csv"
         try:
+            if not csv_path.exists():
+                print(f"❌ CSV file not found at: {csv_path.absolute()}")
+                print(f"📁 Directory contents: {list(self.data_dir.glob('*')) if self.data_dir.exists() else 'Directory does not exist'}")
+                return
+                
             self.csv_data = pd.read_csv(csv_path)
             print(f"✅ Loaded CSV: {len(self.csv_data)} contest records")
         except Exception as e:
@@ -39,7 +50,6 @@ class DataLoader:
             
     def extract_all_pdfs(self):
         """Extract text from all PDF files in data directory"""
-        data_dir = Path("data")
         pdf_files = [
             ("CSA_Bylaws", "ByLawsCompleted10-2020.pdf"),
             ("CSA_Rules", "CSARulesAndRegsREVISED120223.pdf"), 
@@ -48,13 +58,13 @@ class DataLoader:
         ]
         
         for key, filename in pdf_files:
-            pdf_path = data_dir / filename
+            pdf_path = self.data_dir / filename
             if pdf_path.exists():
                 text = self.extract_pdf_text(pdf_path)
                 self.pdf_content[key] = text
                 print(f"✅ Extracted PDF: {key} ({len(text)} characters)")
             else:
-                print(f"❌ PDF not found: {filename}")
+                print(f"❌ PDF not found: {filename} at {pdf_path.absolute()}")
                 
     def create_knowledge_base(self):
         """Create a comprehensive knowledge base string"""
