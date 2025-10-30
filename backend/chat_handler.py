@@ -315,47 +315,54 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
             
             # Handle tool calls
             while response.stop_reason == "tool_use":
-                print("🔧 Processing tool call...")
+                print("🔧 Processing tool calls...")
                 
-                # Find the tool use block
-                tool_use = None
+                # Find ALL tool use blocks
+                tool_uses = []
                 for block in response.content:
                     if hasattr(block, 'type') and block.type == "tool_use":
-                        tool_use = block
-                        break
+                        tool_uses.append(block)
                 
-                if not tool_use:
-                    print("⚠️ No tool use block found")
+                if not tool_uses:
+                    print("⚠️ No tool use blocks found")
                     break
                 
-                print(f"🛠️ Tool: {tool_use.name}")
-                print(f"📋 Input: {tool_use.input}")
+                print(f"🛠️ Found {len(tool_uses)} tool calls")
                 
-                # Execute the tool
-                tool_result = None
-                if tool_use.name == "query_csa_data":
-                    tool_result = execute_query_csa_data(
-                        query_type=tool_use.input.get("query_type"),
-                        filters=tool_use.input.get("filters", {}),
-                        limit=tool_use.input.get("limit", 10)
-                    )
-                    print(f"✅ Tool result: {tool_result.get('message', 'Success')}")
-                
-                if not tool_result:
-                    tool_result = {"error": "Tool execution failed"}
-                
-                # Add assistant response and tool result to messages
+                # Add assistant response to messages first
                 messages.append({"role": "assistant", "content": response.content})
-                messages.append({
-                    "role": "user",
-                    "content": [{
+                
+                # Execute ALL tools and collect results
+                tool_results = []
+                for tool_use in tool_uses:
+                    print(f"🔧 Executing: {tool_use.name} with {tool_use.input}")
+                    
+                    tool_result = None
+                    if tool_use.name == "query_csa_data":
+                        tool_result = execute_query_csa_data(
+                            query_type=tool_use.input.get("query_type"),
+                            filters=tool_use.input.get("filters", {}),
+                            limit=tool_use.input.get("limit", 10)
+                        )
+                        print(f"✅ Tool result: {tool_result.get('message', 'Success')}")
+                    
+                    if not tool_result:
+                        tool_result = {"error": "Tool execution failed"}
+                    
+                    # Add this tool result to the collection
+                    tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": tool_use.id,
                         "content": json.dumps(tool_result, indent=2)
-                    }]
+                    })
+                
+                # Add ALL tool results in a single user message
+                messages.append({
+                    "role": "user",
+                    "content": tool_results
                 })
                 
-                print("🔄 Continuing conversation with tool result...")
+                print("🔄 Continuing conversation with all tool results...")
                 
                 # Continue conversation
                 response = self.client.messages.create(
