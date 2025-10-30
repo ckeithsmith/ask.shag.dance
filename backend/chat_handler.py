@@ -96,7 +96,8 @@ When discussing contest results, always provide context about what the placement
             return response.content[0].text
             
         except Exception as e:
-            return f"Error processing query: {str(e)}"
+            print(f"🔥 CHAT HANDLER ERROR: {type(e).__name__}: {str(e)}")
+            return f"Error processing query: {type(e).__name__}: {str(e)}"
 
 # Global instance
 chat_handler = ChatHandler()
