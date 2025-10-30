@@ -257,7 +257,33 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
 
 **NEVER say:** "Let me check that..." or "I'll analyze this now..." and then send results separately. 
 
-**ALWAYS:** Analyze internally, then present complete verified results in one message."""
+**ALWAYS:** Analyze internally, then present complete verified results in one message.
+
+---
+
+# FORMATTING REQUIREMENTS
+
+**For lists and rankings, use CLEAN formatting:**
+
+✅ **GOOD - Clean numbered lists:**
+1. Sam West - 48 wins
+2. Joey Sogluizzo - 43 wins  
+3. Jeff Hargett - 32 wins
+
+✅ **GOOD - Clean bullet lists:**
+• CSA competitions: 1995-2024
+• NSDC competitions: 2001-2024
+• Total Pro division contests: 347
+
+❌ **BAD - Raw markdown tables with pipes:**
+| Rank | Name | Wins |
+|------|------|------|
+| 1 | Sam West | 48 |
+
+❌ **BAD - Messy delimited text:**
+| 1 | Sam West | 48 | | 2 | Joey | 43 |
+
+**Always use numbered lists for rankings and bullet points for categories. Keep it clean and readable."""
 
     def process_query(self, user_question):
         """Process user query with Claude API and function calling"""
