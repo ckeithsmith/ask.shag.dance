@@ -52,7 +52,7 @@ function App() {
       
       const botMessage = {
         id: Date.now() + 1,
-        text: response,
+        text: response.answer || response,  // Handle both {answer: "..."} and direct string responses
         sender: 'assistant',
         timestamp: new Date()
       };
@@ -81,7 +81,7 @@ function App() {
   };
 
   return (
-    <div className="App">
+    <div className="App flex flex-col min-h-screen">
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-lg">
         <div className="max-w-4xl mx-auto">
@@ -91,7 +91,7 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto flex-1 flex flex-col h-screen">
+      <main className="max-w-4xl mx-auto flex-1 flex flex-col w-full">
         {/* Welcome Message and Suggested Questions */}
         {messages.length === 0 && (
           <div className="p-6">
