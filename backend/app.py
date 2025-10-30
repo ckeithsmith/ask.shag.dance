@@ -117,12 +117,35 @@ def serve_frontend():
 @app.route('/<path:path>')
 def serve_static_files(path):
     """Serve static files from React build"""
+    print(f"🔍 Static file request: {path}")
+    
     if not os.path.exists(build_dir):
+        print(f"❌ Build directory not found: {build_dir}")
         return "Frontend build directory not found. Please check deployment.", 500
+    
+    full_path = os.path.join(build_dir, path)
+    print(f"🔍 Looking for file: {full_path}")
+    print(f"📁 File exists: {os.path.exists(full_path)}")
+    
+    if not os.path.exists(full_path):
+        # Show what files ARE available for debugging
+        try:
+            if path.startswith('static/'):
+                static_dir = os.path.join(build_dir, 'static')
+                if os.path.exists(static_dir):
+                    print(f"📁 Static directory contents: {os.listdir(static_dir)}")
+                    # Check subdirectories
+                    for item in os.listdir(static_dir):
+                        item_path = os.path.join(static_dir, item)
+                        if os.path.isdir(item_path):
+                            print(f"📁 {item}/ contents: {os.listdir(item_path)}")
+        except Exception as e:
+            print(f"⚠️ Debug listing error: {e}")
     
     try:
         return send_from_directory(build_dir, path)
-    except FileNotFoundError:
+    except FileNotFoundError as e:
+        print(f"❌ FileNotFoundError: {e}")
         # Fallback to index.html for React Router
         return send_from_directory(build_dir, 'index.html')
 
