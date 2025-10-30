@@ -1,6 +1,8 @@
 import os
+import json
 from anthropic import Anthropic
 from data_loader import data_loader
+from tools import TOOLS, execute_query_csa_data
 
 class ChatHandler:
     def __init__(self):
@@ -23,12 +25,16 @@ class ChatHandler:
             print("⚠️ ANTHROPIC_API_KEY not found - API will not work")
     
     def create_system_prompt(self):
-        """Create system prompt with data context and security instructions"""
+        """Create system prompt with data context and mandatory tool usage"""
         return f"""You are the CSA Shag Dance Archive expert. Your job is to analyze competitive shag dancing results with PERFECT ACCURACY.
 
-# CRITICAL: COMPLETE RESPONSES
+# CRITICAL: YOU HAVE ACCESS TO REAL DATA
 
-**ALWAYS provide complete answers in a SINGLE response.** Do NOT break your analysis into multiple messages. Show all verification steps, filtering logic, and results together in one comprehensive reply.
+You have access to a tool called `query_csa_data` that queries the actual CSA competition database with 7,868 contest records.
+
+**MANDATORY: For ANY statistical question, you MUST use the query_csa_data tool.**
+
+NEVER answer statistical questions from memory or training data. ALWAYS query the actual database using the tool.
 
 ---
 
@@ -254,7 +260,7 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
 **ALWAYS:** Analyze internally, then present complete verified results in one message."""
 
     def process_query(self, user_question):
-        """Process user query with Claude API"""
+        """Process user query with Claude API and function calling"""
         if not self.client:
             return "Error: API not configured. Please check environment variables."
         
@@ -265,16 +271,85 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
             sample_data = data_loader.get_csv_sample(5)
             context_prompt = f"\n\nHere are some recent contest records for context:\n{sample_data}"
             
+            # Initialize messages
+            messages = [{"role": "user", "content": user_question}]
+            
+            print(f"🎯 Processing query: {user_question}")
+            
+            # Initial API call with tools
             response = self.client.messages.create(
                 model="claude-sonnet-4-5-20250929",
                 max_tokens=3000,
                 system=system_prompt + context_prompt,
-                messages=[
-                    {"role": "user", "content": user_question}
-                ]
+                messages=messages,
+                tools=TOOLS
             )
             
-            return response.content[0].text
+            print(f"🔄 Initial response stop reason: {response.stop_reason}")
+            
+            # Handle tool calls
+            while response.stop_reason == "tool_use":
+                print("🔧 Processing tool call...")
+                
+                # Find the tool use block
+                tool_use = None
+                for block in response.content:
+                    if hasattr(block, 'type') and block.type == "tool_use":
+                        tool_use = block
+                        break
+                
+                if not tool_use:
+                    print("⚠️ No tool use block found")
+                    break
+                
+                print(f"🛠️ Tool: {tool_use.name}")
+                print(f"📋 Input: {tool_use.input}")
+                
+                # Execute the tool
+                tool_result = None
+                if tool_use.name == "query_csa_data":
+                    tool_result = execute_query_csa_data(
+                        query_type=tool_use.input.get("query_type"),
+                        filters=tool_use.input.get("filters", {}),
+                        limit=tool_use.input.get("limit", 10)
+                    )
+                    print(f"✅ Tool result: {tool_result.get('message', 'Success')}")
+                
+                if not tool_result:
+                    tool_result = {"error": "Tool execution failed"}
+                
+                # Add assistant response and tool result to messages
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": tool_use.id,
+                        "content": json.dumps(tool_result, indent=2)
+                    }]
+                })
+                
+                print("🔄 Continuing conversation with tool result...")
+                
+                # Continue conversation
+                response = self.client.messages.create(
+                    model="claude-sonnet-4-5-20250929",
+                    max_tokens=3000,
+                    system=system_prompt + context_prompt,
+                    messages=messages,
+                    tools=TOOLS
+                )
+                
+                print(f"🔄 Follow-up response stop reason: {response.stop_reason}")
+            
+            # Extract final text response
+            final_text = ""
+            for block in response.content:
+                if hasattr(block, 'text'):
+                    final_text += block.text
+            
+            print("✅ Query processing complete")
+            return final_text
             
         except Exception as e:
             print(f"🔥 CHAT HANDLER ERROR: {type(e).__name__}: {str(e)}")
