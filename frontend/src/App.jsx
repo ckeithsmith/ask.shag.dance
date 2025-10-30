@@ -1,150 +1,138 @@
 import React, { useState, useEffect, useRef } from 'react';
+import './App.css';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import LoadingSpinner from './components/LoadingSpinner';
-import { askQuestion, getSuggestedQuestions, checkHealth } from './services/api';
-import './App.css';
+import * as api from './services/api';
 
-const App = () => {
+function App() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState([]);
-  const [healthStatus, setHealthStatus] = useState(null);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(scrollToBottom, [messages]);
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
-    // Load initial data
-    const loadInitialData = async () => {
+    // Load suggested questions on startup
+    const loadSuggestions = async () => {
       try {
-        const [suggestions, health] = await Promise.all([
-          getSuggestedQuestions(),
-          checkHealth()
-        ]);
+        const suggestions = await api.getSuggestedQuestions();
         setSuggestedQuestions(suggestions);
-        setHealthStatus(health);
       } catch (error) {
-        console.error('Failed to load initial data:', error);
+        console.error('Failed to load suggestions:', error);
       }
     };
-
-    loadInitialData();
-
-    // Add welcome message
-    setMessages([
-      {
-        id: 'welcome',
-        text: `# Welcome to the CSA Shag Archive Assistant! 🕺💃\n\nI'm here to help you explore **35 years** of competitive shag dancing history from the **Competitive Shaggers Association (CSA)** and **National Shag Dance Championship (NSDC)**.\n\nI have access to:\n- **7,869 contest records** from 1990-2025\n- Complete CSA rules and regulations\n- NSDC championship rules\n- Required song lists and bylaws\n\nAsk me anything about:\n- Contest winners and placements\n- Competition divisions and advancement rules\n- Historical trends and statistics\n- Specific dancers or couples\n- Contest locations and dates\n- Judging information\n\nTry one of the suggested questions below or ask your own!`,
-        isUser: false,
-        timestamp: new Date()
-      }
-    ]);
+    loadSuggestions();
   }, []);
 
-  const handleSendMessage = async (message) => {
-    setError(null);
-    
-    // Add user message
-    const userMessage = {
-      id: Date.now() + '-user',
-      text: message,
-      isUser: true,
+  const handleSendMessage = async (userMessage) => {
+    if (!userMessage.trim() || isLoading) return;
+
+    const newUserMessage = {
+      id: Date.now(),
+      text: userMessage,
+      sender: 'user',
       timestamp: new Date()
     };
-    setMessages(prev => [...prev, userMessage]);
+
+    setMessages(prev => [...prev, newUserMessage]);
     setIsLoading(true);
+    setError(null);
 
     try {
-      const response = await askQuestion(message);
+      const response = await api.askQuestion(userMessage);
       
-      // Add assistant response
-      const assistantMessage = {
-        id: Date.now() + '-assistant',
-        text: response.answer,
-        isUser: false,
+      const botMessage = {
+        id: Date.now() + 1,
+        text: response,
+        sender: 'assistant',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, assistantMessage]);
+
+      setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      setError(error.message);
+      console.error('Error getting response:', error);
       
-      // Add error message
       const errorMessage = {
-        id: Date.now() + '-error',
-        text: `Sorry, I encountered an error: ${error.message}\n\nPlease try rephrasing your question or try again in a moment.`,
-        isUser: false,
-        timestamp: new Date()
+        id: Date.now() + 1,
+        text: `Sorry, I encountered an error: ${error.message}. Please try again or check if the service is available.`,
+        sender: 'assistant',
+        timestamp: new Date(),
+        isError: true
       };
+
       setMessages(prev => [...prev, errorMessage]);
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSuggestedQuestion = (question) => {
+  const handleSuggestionClick = (question) => {
     handleSendMessage(question);
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="App">
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-lg">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl font-bold">CSA Shag Archive Assistant</h1>
-          <p className="text-blue-100 text-sm">Your guide to 35 years of competitive shag dancing</p>
-          {healthStatus && (
-            <div className="text-xs text-blue-100 mt-1">
-              {healthStatus.total_records} contest records • {healthStatus.pdf_count} documents loaded
-            </div>
-          )}
+          <h1 className="text-2xl font-bold">CSA Shag Archive Q&A</h1>
+          <p className="text-blue-100 text-sm">Ask questions about Competitive Shaggers Association history and contests</p>
         </div>
       </header>
 
-      {/* Main Chat Area */}
-      <main className="flex-1 overflow-hidden flex flex-col max-w-4xl mx-auto w-full">
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((message) => (
-            <ChatMessage
-              key={message.id}
-              message={message.text}
-              isUser={message.isUser}
-              timestamp={message.timestamp}
-            />
+      {/* Main Content */}
+      <main className="max-w-4xl mx-auto flex-1 flex flex-col h-screen">
+        {/* Welcome Message and Suggested Questions */}
+        {messages.length === 0 && (
+          <div className="p-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+              <h2 className="text-xl font-semibold text-blue-900 mb-3">
+                Welcome to the CSA Shag Archive! 🕺💃
+              </h2>
+              <p className="text-blue-800 mb-4">
+                I'm your guide to the complete Competitive Shaggers Association database, 
+                covering decades of shag dance competitions, rules, and championship history.
+              </p>
+              
+              {suggestedQuestions.length > 0 && (
+                <div>
+                  <p className="text-blue-800 font-medium mb-3">Try asking me about:</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {suggestedQuestions.map((question, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSuggestionClick(question)}
+                        className="text-left p-3 bg-white border border-blue-300 rounded hover:bg-blue-100 hover:border-blue-400 transition-colors text-sm text-blue-900"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Messages Area */}
+        <div className="flex-1 overflow-y-auto px-6 pb-4">
+          {messages.map(message => (
+            <ChatMessage key={message.id} message={message} />
           ))}
           
-          {/* Suggested Questions (shown when no user messages yet) */}
-          {messages.filter(m => m.isUser).length === 0 && suggestedQuestions.length > 0 && (
-            <div className="mt-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Try asking:</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {suggestedQuestions.map((question, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSuggestedQuestion(question)}
-                    className="text-left p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm"
-                    disabled={isLoading}
-                  >
-                    {question}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* Loading Spinner */}
-          {isLoading && <LoadingSpinner />}
-          
-          {/* Error Display */}
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {error}
+          {isLoading && (
+            <div className="flex justify-center py-4">
+              <LoadingSpinner />
             </div>
           )}
           
@@ -160,4 +148,7 @@ const App = () => {
         <p>CSA Archive data spans 1990-2025 • Built with 🕺 for the shag community</p>
       </footer>
     </div>
-  );\n};\n\nexport default App;
+  );
+}
+
+export default App;
