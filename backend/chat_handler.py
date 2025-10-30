@@ -69,7 +69,7 @@ When discussing contest results, always provide context about what the placement
             context_prompt = f"\n\nHere are some recent contest records for context:\n{sample_data}"
             
             response = self.client.messages.create(
-                model="claude-3-sonnet-20240229",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=3000,
                 system=system_prompt + context_prompt,
                 messages=[
