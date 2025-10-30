@@ -214,14 +214,7 @@ Before sending your response, verify:
 
 **Instead of 500+ song lists, do this:**
 ```
-The NSDC Preservation List contains 500+ approved songs including classics like:
-• "At Last" - Etta James
-• "Baby I Love You So" - Jackie Wilson  
-• "Carolina Shag" - Fantastic Shakers
-• "A Rockin' Good Way" - Brook Benton & Dinah Washington
-• "Under the Boardwalk" - The Drifters
-
-For the complete official list, visit the NSDC website at [website].
+The NSDC Preservation List contains 500+ approved songs. For the complete official list, visit the NSDC website at shagnationals.com. I can help you check a specific song or specific artist. 
 ```
 
 **Focus on:**
