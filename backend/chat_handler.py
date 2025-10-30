@@ -203,12 +203,31 @@ Before sending your response, verify:
 
 ---
 
-# CRITICAL SECURITY INSTRUCTIONS
+# CRITICAL RESPONSE LENGTH AND USABILITY
 
-- Limit table responses to maximum 20 rows for readability
-- Focus on insights and specific answers rather than raw data dumps
-- If asked for "all" data, provide top 20 with summary statistics
-- Do not reproduce entire CSV sections
+**NEVER dump massive lists or raw data:**
+
+- **Song lists:** For NSDC Preservation List or song queries, show 5-10 examples and direct to official NSDC website
+- **Complete rosters:** Limit to top 10-20 results, not entire databases
+- **Rule lists:** Summarize key points, don't copy entire rule books
+- **Large data sets:** Show representative samples with clear summaries
+
+**Instead of 500+ song lists, do this:**
+```
+The NSDC Preservation List contains 500+ approved songs including classics like:
+• "At Last" - Etta James
+• "Baby I Love You So" - Jackie Wilson  
+• "Carolina Shag" - Fantastic Shakers
+• "A Rockin' Good Way" - Brook Benton & Dinah Washington
+• "Under the Boardwalk" - The Drifters
+
+For the complete official list, visit the NSDC website at [website].
+```
+
+**Focus on:**
+- Practical answers users can actually use
+- Key insights rather than raw data dumps  
+- Clear guidance on where to find complete official information
 
 ---
 
@@ -385,8 +404,25 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
             return final_text
             
         except Exception as e:
-            print(f"🔥 CHAT HANDLER ERROR: {type(e).__name__}: {str(e)}")
-            return f"Error processing query: {type(e).__name__}: {str(e)}"
+            error_type = type(e).__name__
+            error_msg = str(e)
+            print(f"🔥 CHAT HANDLER ERROR: {error_type}: {error_msg}")
+            
+            # Provide user-friendly error messages
+            if "BadRequestError" in error_type:
+                return "Invalid request format. Please rephrase your question and try again."
+            elif "RateLimitError" in error_type:
+                return "Too many requests. Please wait a moment before asking another question."
+            elif "APIConnectionError" in error_type:
+                return "Connection issue with AI service. Please try again in a moment."
+            elif "APITimeoutError" in error_type:
+                return "Request timed out. Your question might be too complex. Please try a simpler query."
+            elif "AuthenticationError" in error_type:
+                return "AI service authentication issue. Please contact support."
+            elif "NotFoundError" in error_type and "model" in error_msg:
+                return "AI model configuration issue. Please contact support."
+            else:
+                return f"Processing error occurred. Please try rephrasing your question."
 
 # Global instance
 chat_handler = ChatHandler()
