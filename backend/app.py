@@ -93,14 +93,33 @@ def get_suggested_questions():
 # Serve React frontend (for production)
 build_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/build'))
 
+# Check build directory on startup
+print(f"🔍 Frontend build directory: {build_dir}")
+print(f"📁 Build directory exists: {os.path.exists(build_dir)}")
+if os.path.exists(build_dir):
+    build_files = os.listdir(build_dir)
+    print(f"📄 Build files: {build_files}")
+else:
+    print("❌ Build directory not found! Frontend will not work.")
+
 @app.route('/')
 def serve_frontend():
     """Serve the React frontend"""
+    if not os.path.exists(build_dir):
+        return "Frontend build directory not found. Please check deployment.", 500
+    
+    index_path = os.path.join(build_dir, 'index.html')
+    if not os.path.exists(index_path):
+        return f"Frontend index.html not found at {index_path}", 500
+        
     return send_from_directory(build_dir, 'index.html')
 
 @app.route('/<path:path>')
 def serve_static_files(path):
     """Serve static files from React build"""
+    if not os.path.exists(build_dir):
+        return "Frontend build directory not found. Please check deployment.", 500
+    
     try:
         return send_from_directory(build_dir, path)
     except FileNotFoundError:
