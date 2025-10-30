@@ -9,7 +9,7 @@ from security import rate_limit, validate_input, filter_response
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder=None)  # Disable Flask's default static handling
 CORS(app)
 
 # Initialize data on startup
