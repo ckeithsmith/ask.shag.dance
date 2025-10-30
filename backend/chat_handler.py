@@ -404,8 +404,25 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
             return final_text
             
         except Exception as e:
-            print(f"🔥 CHAT HANDLER ERROR: {type(e).__name__}: {str(e)}")
-            return f"Error processing query: {type(e).__name__}: {str(e)}"
+            error_type = type(e).__name__
+            error_msg = str(e)
+            print(f"🔥 CHAT HANDLER ERROR: {error_type}: {error_msg}")
+            
+            # Provide user-friendly error messages
+            if "BadRequestError" in error_type:
+                return "Invalid request format. Please rephrase your question and try again."
+            elif "RateLimitError" in error_type:
+                return "Too many requests. Please wait a moment before asking another question."
+            elif "APIConnectionError" in error_type:
+                return "Connection issue with AI service. Please try again in a moment."
+            elif "APITimeoutError" in error_type:
+                return "Request timed out. Your question might be too complex. Please try a simpler query."
+            elif "AuthenticationError" in error_type:
+                return "AI service authentication issue. Please contact support."
+            elif "NotFoundError" in error_type and "model" in error_msg:
+                return "AI model configuration issue. Please contact support."
+            else:
+                return f"Processing error occurred. Please try rephrasing your question."
 
 # Global instance
 chat_handler = ChatHandler()

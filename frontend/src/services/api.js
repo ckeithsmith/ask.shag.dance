@@ -11,16 +11,32 @@ const api = axios.create({
 
 export const askQuestion = async (question) => {
   try {
-    const response = await api.post('/ask', { question });
+    const response = await api.post('/ask', { question }, {
+      timeout: 45000 // 45 second timeout for complex queries
+    });
     return response.data;
   } catch (error) {
+    console.error('API Error Details:', error);
+    
+    if (error.code === 'ECONNABORTED') {
+      throw new Error('Request timed out. The query might be too complex. Please try a simpler question.');
+    }
     if (error.response?.status === 429) {
       throw new Error('Rate limit exceeded. Please wait before asking another question.');
+    }
+    if (error.response?.status === 500) {
+      throw new Error('Server error occurred. Please try again in a moment.');
+    }
+    if (error.response?.status === 503) {
+      throw new Error('Service temporarily unavailable. Please try again in a moment.');
     }
     if (error.response?.data?.error) {
       throw new Error(error.response.data.error);
     }
-    throw new Error('Failed to get response. Please try again.');
+    if (error.message.includes('Network Error')) {
+      throw new Error('Network connection issue. Please check your internet connection.');
+    }
+    throw new Error(`Connection failed (${error.response?.status || 'unknown'}). Please try again.`);
   }
 };
 
