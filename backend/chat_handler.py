@@ -5,14 +5,19 @@ from data_loader import data_loader
 class ChatHandler:
     def __init__(self):
         self.client = None
+        self.api_key = None
         self.initialize_client()
         
     def initialize_client(self):
         """Initialize Anthropic client"""
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-        if api_key:
-            self.client = Anthropic(api_key=api_key)
-            print("✅ Claude API client initialized")
+        self.api_key = os.getenv('ANTHROPIC_API_KEY')
+        if self.api_key:
+            try:
+                self.client = Anthropic(api_key=self.api_key)
+                print("✅ Claude API client initialized")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize Claude API client: {e}")
+                self.client = None
         else:
             print("⚠️ ANTHROPIC_API_KEY not found - API will not work")
     
