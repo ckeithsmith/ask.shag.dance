@@ -114,6 +114,44 @@ def serve_frontend():
         
     return send_from_directory(build_dir, 'index.html')
 
+@app.route('/debug-files')
+def debug_files():
+    """Debug endpoint to check what files actually exist"""
+    info = {
+        "build_dir": build_dir,
+        "build_dir_exists": os.path.exists(build_dir),
+        "cwd": os.getcwd()
+    }
+    
+    if os.path.exists(build_dir):
+        info["build_contents"] = os.listdir(build_dir)
+        
+        static_dir = os.path.join(build_dir, 'static')
+        if os.path.exists(static_dir):
+            info["static_exists"] = True
+            info["static_contents"] = os.listdir(static_dir)
+            
+            # Check specific subdirectories
+            css_dir = os.path.join(static_dir, 'css')
+            js_dir = os.path.join(static_dir, 'js')
+            
+            if os.path.exists(css_dir):
+                info["css_files"] = os.listdir(css_dir)
+            if os.path.exists(js_dir):
+                info["js_files"] = os.listdir(js_dir)
+                
+            # Check specific files we need
+            css_file = os.path.join(css_dir, 'main.81d789d0.css')
+            js_file = os.path.join(js_dir, 'main.22c33d1c.js')
+            
+            info["target_css_exists"] = os.path.exists(css_file)
+            info["target_js_exists"] = os.path.exists(js_file)
+            
+        else:
+            info["static_exists"] = False
+    
+    return jsonify(info)
+
 @app.route('/<path:path>')
 def serve_static_files(path):
     """Serve static files from React build"""
