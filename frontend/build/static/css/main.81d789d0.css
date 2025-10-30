@@ -1,0 +1,2 @@
+@tailwind base;@tailwind components;@tailwind utilities;::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f1f1}::-webkit-scrollbar-thumb{background:#c1c1c1;border-radius:3px}::-webkit-scrollbar-thumb:hover{background:#a8a8a8}.prose table{display:block;max-width:100%;overflow-x:auto;white-space:nowrap}textarea{max-height:120px;min-height:40px;overflow-y:auto;resize:none}@keyframes spin{0%{transform:rotate(0deg)}to{transform:rotate(1turn)}}.animate-spin{animation:spin 1s linear infinite}
+/*# sourceMappingURL=main.81d789d0.css.map*/
