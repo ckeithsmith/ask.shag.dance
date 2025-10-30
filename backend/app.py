@@ -91,15 +91,21 @@ def get_suggested_questions():
     return jsonify({"suggestions": suggestions})
 
 # Serve React frontend (for production)
+build_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/build'))
+
 @app.route('/')
 def serve_frontend():
     """Serve the React frontend"""
-    return send_from_directory('../frontend/build', 'index.html')
+    return send_from_directory(build_dir, 'index.html')
 
 @app.route('/<path:path>')
 def serve_static_files(path):
     """Serve static files from React build"""
-    return send_from_directory('../frontend/build', path)
+    try:
+        return send_from_directory(build_dir, path)
+    except FileNotFoundError:
+        # Fallback to index.html for React Router
+        return send_from_directory(build_dir, 'index.html')
 
 if __name__ == '__main__':
     # Initialize data immediately for development

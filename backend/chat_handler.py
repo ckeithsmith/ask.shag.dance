@@ -1,4 +1,5 @@
 import os
+import httpx
 from anthropic import Anthropic
 from data_loader import data_loader
 
@@ -9,15 +10,31 @@ class ChatHandler:
         self.initialize_client()
         
     def initialize_client(self):
-        """Initialize Anthropic client"""
+        """Initialize Anthropic client with custom HTTP client to avoid proxy issues"""
         self.api_key = os.getenv('ANTHROPIC_API_KEY')
         if self.api_key:
             try:
-                self.client = Anthropic(api_key=self.api_key)
-                print("✅ Claude API client initialized")
+                # Create custom HTTP client without proxy settings to avoid Heroku proxy conflicts
+                http_client = httpx.Client(
+                    timeout=30.0,
+                    # Explicitly disable proxy usage that might conflict with Heroku
+                    proxies=None
+                )
+                
+                self.client = Anthropic(
+                    api_key=self.api_key,
+                    http_client=http_client
+                )
+                print("✅ Claude API client initialized with custom HTTP client")
             except Exception as e:
                 print(f"⚠️ Failed to initialize Claude API client: {e}")
-                self.client = None
+                # Fallback to basic initialization
+                try:
+                    self.client = Anthropic(api_key=self.api_key)
+                    print("✅ Claude API client initialized with fallback method")
+                except Exception as e2:
+                    print(f"⚠️ Fallback initialization also failed: {e2}")
+                    self.client = None
         else:
             print("⚠️ ANTHROPIC_API_KEY not found - API will not work")
     
