@@ -123,16 +123,12 @@ def ask_question():
 def get_suggested_questions():
     """Get suggested questions for first-time users"""
     suggestions = [
-        "Who has won the most CSA contests?",
-        "What are the different competition divisions?", 
-        "Show me the top 10 most successful couples",
-        "What are the rules for advancing divisions?",
-        "How many NSDC championships have been held?",
-        "What contests happen most frequently?",
-        "Who are the top judges in CSA competitions?",
-        "Explain the CSA division system",
-        "What is the NSDC required song list?",
-        "Show me contest trends over the years"
+        "How many total dancers have danced in CSA in the last 10 years?",
+        "Who has won the most contest overall?",
+        "Who has won the most CSA contest?",
+        "What Judges are on the Top 20 list of number placements judged in the last 10 years?",
+        "How long does it take to progress from Amateur to Pro?",
+        "Has anyone won every division of both NSDC and CSA?"
     ]
     return jsonify({"suggestions": suggestions})
 
