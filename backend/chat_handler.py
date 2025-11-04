@@ -172,6 +172,33 @@ query_csa_data(query_type="judge_statistics", filters={{"organization": "Both"}}
 - Always report data completeness: "X records with judge data, Y without"
 - These are "recorded judging assignments" not necessarily all judging activity
 
+### **NEW HIGH-VALUE QUERIES:**
+
+### "How many unique dancers are in the database?"
+```python
+query_csa_data(query_type="unique_counts", filters={{"count_what": "all_dancers", "organization": "Both"}})
+```
+
+### "What's Sam West's win rate?"
+```python
+query_csa_data(query_type="win_statistics", filters={{"dancer_name": "Sam West", "organization": "Both"}})
+```
+
+### "Who were Sam West's best partners?"
+```python
+query_csa_data(query_type="partnership_analysis", filters={{"dancer_name": "Sam West"}})
+```
+
+### "What's Sam West's career span?"
+```python
+query_csa_data(query_type="career_statistics", filters={{"dancer_name": "Sam West"}})
+```
+
+### "Show contest trends over time"
+```python
+query_csa_data(query_type="yearly_trends", filters={{"metric": "entries", "organization": "CSA"}})
+```
+
 ## 6. RED FLAGS - When to Double-Check
 
 - If a dancer suddenly has way more/fewer wins than expected

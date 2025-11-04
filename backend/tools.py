@@ -17,7 +17,7 @@ TOOLS = [
             "properties": {
                 "query_type": {
                     "type": "string",
-                    "enum": ["count_wins", "dancer_record", "top_dancers", "contest_results", "judge_statistics", "custom_query"],
+                    "enum": ["count_wins", "dancer_record", "top_dancers", "contest_results", "judge_statistics", "unique_counts", "win_statistics", "partnership_analysis", "career_statistics", "yearly_trends", "custom_query"],
                     "description": "Type of query to run"
                 },
                 "filters": {
@@ -63,6 +63,20 @@ TOOLS = [
                         "contest": {
                             "type": "string",
                             "description": "Filter by contest name"
+                        },
+                        "count_what": {
+                            "type": "string",
+                            "enum": ["male_dancers", "female_dancers", "all_dancers", "couples", "contests", "venues"],
+                            "description": "What to count unique values of (for unique_counts query type)"
+                        },
+                        "metric": {
+                            "type": "string",
+                            "enum": ["wins", "entries", "win_rate"],
+                            "description": "What metric to analyze (for statistics and trends)"
+                        },
+                        "dancer_name": {
+                            "type": "string",
+                            "description": "Search for a dancer name in both male and female columns"
                         }
                     },
                     "description": "Filters to apply to the data"
@@ -256,6 +270,207 @@ def execute_query_csa_data(query_type, filters, limit=10):
                 sample = filtered_df.head(limit)
                 result["sample_records"] = sample.to_dict('records')
                 result["message"] = f"Custom query returned {len(filtered_df)} records, showing first {min(len(sample), limit)}"
+        
+        # ========== NEW HIGH-VALUE QUERY TYPES ==========
+        
+        # UNIQUE COUNTS
+        elif query_type == "unique_counts":
+            count_what = filters.get('count_what', 'all_dancers')
+            
+            if count_what == "all_dancers":
+                all_names = pd.concat([filtered_df['Male Name'], filtered_df['Female Name']]).dropna().unique()
+                unique_males = filtered_df['Male Name'].dropna().unique()
+                unique_females = filtered_df['Female Name'].dropna().unique()
+                
+                return {
+                    "query": "Total unique dancers",
+                    "filters_applied": filters,
+                    "unique_dancers_total": len(all_names),
+                    "unique_male_dancers": len(unique_males),
+                    "unique_female_dancers": len(unique_females),
+                    "total_contest_entries": len(filtered_df)
+                }
+            
+            elif count_what == "male_dancers":
+                unique_males = filtered_df['Male Name'].dropna().unique()
+                return {
+                    "query": "Unique male dancers",
+                    "filters_applied": filters,
+                    "unique_count": len(unique_males),
+                    "total_contest_entries": len(filtered_df)
+                }
+            
+            elif count_what == "female_dancers":
+                unique_females = filtered_df['Female Name'].dropna().unique()
+                return {
+                    "query": "Unique female dancers",
+                    "filters_applied": filters,
+                    "unique_count": len(unique_females),
+                    "total_contest_entries": len(filtered_df)
+                }
+            
+            elif count_what == "couples":
+                unique_couples = filtered_df['Couple Name'].dropna().unique()
+                return {
+                    "query": "Unique couple pairings",
+                    "filters_applied": filters,
+                    "unique_count": len(unique_couples),
+                    "total_contest_entries": len(filtered_df)
+                }
+            
+            elif count_what == "contests":
+                unique_contests = filtered_df['Contest'].dropna().unique()
+                return {
+                    "query": "Unique contests",
+                    "filters_applied": filters,
+                    "unique_count": len(unique_contests),
+                    "total_contest_entries": len(filtered_df)
+                }
+            
+            elif count_what == "venues":
+                unique_venues = filtered_df['Host Club'].dropna().unique()
+                return {
+                    "query": "Unique venues",
+                    "filters_applied": filters,
+                    "unique_count": len(unique_venues),
+                    "total_contest_entries": len(filtered_df)
+                }
+        
+        # WIN STATISTICS
+        elif query_type == "win_statistics":
+            dancer_name = filters.get('dancer_name')
+            if not dancer_name:
+                return {"error": "dancer_name is required for win_statistics"}
+            
+            # Get dancer's records
+            dancer_df = filtered_df[
+                (filtered_df['Male Name'] == dancer_name) | 
+                (filtered_df['Female Name'] == dancer_name)
+            ]
+            
+            if len(dancer_df) == 0:
+                return {"error": f"No records found for {dancer_name}"}
+            
+            total_contests = len(dancer_df)
+            wins = len(dancer_df[dancer_df['Placement'] == 1])
+            top_3 = len(dancer_df[dancer_df['Placement'] <= 3])
+            win_rate = (wins / total_contests * 100) if total_contests > 0 else 0
+            
+            return {
+                "query": f"Win statistics for {dancer_name}",
+                "dancer": dancer_name,
+                "filters_applied": filters,
+                "total_contests": total_contests,
+                "wins": wins,
+                "top_3_finishes": top_3,
+                "win_rate_percent": round(win_rate, 2)
+            }
+        
+        # PARTNERSHIP ANALYSIS
+        elif query_type == "partnership_analysis":
+            dancer_name = filters.get('dancer_name')
+            if not dancer_name:
+                return {"error": "dancer_name is required for partnership_analysis"}
+            
+            dancer_df = filtered_df[
+                (filtered_df['Male Name'] == dancer_name) | 
+                (filtered_df['Female Name'] == dancer_name)
+            ]
+            
+            if len(dancer_df) == 0:
+                return {"error": f"No records found for {dancer_name}"}
+            
+            # Determine if male or female to find partners
+            is_male = (dancer_df['Male Name'] == dancer_name).any()
+            partner_col = 'Female Name' if is_male else 'Male Name'
+            
+            # Group by partner
+            partnership_stats = []
+            for partner in dancer_df[partner_col].dropna().unique():
+                partner_df = dancer_df[dancer_df[partner_col] == partner]
+                wins = len(partner_df[partner_df['Placement'] == 1])
+                contests = len(partner_df)
+                
+                partnership_stats.append({
+                    "partner": partner,
+                    "contests_together": contests,
+                    "wins_together": wins,
+                    "win_rate": round(wins / contests * 100, 2) if contests > 0 else 0
+                })
+            
+            # Sort by contests together (most partnerships first)
+            partnership_stats.sort(key=lambda x: x['contests_together'], reverse=True)
+            
+            return {
+                "query": f"Partnership analysis for {dancer_name}",
+                "dancer": dancer_name,
+                "filters_applied": filters,
+                "total_partners": len(partnership_stats),
+                "partnerships": partnership_stats[:limit]
+            }
+        
+        # CAREER STATISTICS
+        elif query_type == "career_statistics":
+            dancer_name = filters.get('dancer_name')
+            if not dancer_name:
+                return {"error": "dancer_name is required for career_statistics"}
+            
+            dancer_df = filtered_df[
+                (filtered_df['Male Name'] == dancer_name) | 
+                (filtered_df['Female Name'] == dancer_name)
+            ]
+            
+            if len(dancer_df) == 0:
+                return {"error": f"No records found for {dancer_name}"}
+            
+            first_year = dancer_df['Year'].min()
+            last_year = dancer_df['Year'].max()
+            years_active = last_year - first_year + 1
+            years_competed = dancer_df['Year'].nunique()
+            
+            # Partners
+            is_male = (dancer_df['Male Name'] == dancer_name).any()
+            partner_col = 'Female Name' if is_male else 'Male Name'
+            partners = dancer_df[partner_col].dropna().unique()
+            
+            # Organizations and divisions
+            orgs = dancer_df['Organization'].value_counts().to_dict()
+            divisions = dancer_df['Division'].unique().tolist()
+            
+            return {
+                "query": f"Career statistics for {dancer_name}",
+                "dancer": dancer_name,
+                "filters_applied": filters,
+                "first_contest_year": int(first_year),
+                "last_contest_year": int(last_year),
+                "career_span_years": years_active,
+                "years_competed": years_competed,
+                "total_contests": len(dancer_df),
+                "unique_partners": len(partners),
+                "organizations": orgs,
+                "divisions_competed": divisions
+            }
+        
+        # YEARLY TRENDS  
+        elif query_type == "yearly_trends":
+            metric = filters.get('metric', 'entries')
+            
+            if metric == 'wins':
+                yearly_data = filtered_df[filtered_df['Placement'] == 1].groupby('Year').size()
+            else:  # entries
+                yearly_data = filtered_df.groupby('Year').size()
+            
+            yearly_dict = yearly_data.to_dict()
+            
+            return {
+                "query": f"Yearly trends - {metric}",
+                "filters_applied": filters,
+                "metric": metric,
+                "yearly_data": {int(year): int(count) for year, count in yearly_dict.items()},
+                "total_years": len(yearly_data),
+                "peak_year": int(yearly_data.idxmax()) if len(yearly_data) > 0 else None,
+                "peak_count": int(yearly_data.max()) if len(yearly_data) > 0 else None
+            }
         
         return result
     
