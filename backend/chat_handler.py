@@ -439,8 +439,13 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
             error_type = type(e).__name__
             error_msg = str(e)
             print(f"🔥 CHAT HANDLER ERROR: {error_type}: {error_msg}")
+            print(f"🔍 FULL ERROR DETAILS: {repr(e)}")
             
-            # Provide user-friendly error messages
+            # Import traceback for better debugging
+            import traceback
+            print(f"📍 STACK TRACE: {traceback.format_exc()}")
+            
+            # Provide user-friendly error messages with more detail
             if "BadRequestError" in error_type:
                 return "Invalid request format. Please rephrase your question and try again."
             elif "RateLimitError" in error_type:
@@ -453,8 +458,13 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
                 return "AI service authentication issue. Please contact support."
             elif "NotFoundError" in error_type and "model" in error_msg:
                 return "AI model configuration issue. Please contact support."
+            elif "ImportError" in error_type or "ModuleNotFoundError" in error_type:
+                return "System configuration issue. Please contact support."
+            elif "FileNotFoundError" in error_type:
+                return "Database file not found. Please contact support to restore data files."
             else:
-                return f"Processing error occurred. Please try rephrasing your question."
+                # Return more specific error information for debugging
+                return f"Processing error ({error_type}): {error_msg[:100]}. Please try rephrasing your question or contact support if this persists."
 
 # Global instance
 chat_handler = ChatHandler()
