@@ -51,7 +51,7 @@ def health_check():
     })
 
 @app.route('/api/ask', methods=['POST'])
-@rate_limit(max_requests=10, window_minutes=1)
+@rate_limit(max_requests=5, window_minutes=1)
 def ask_question():
     """Main chat endpoint"""
     start_time = time.time()
