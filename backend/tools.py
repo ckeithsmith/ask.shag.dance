@@ -17,7 +17,7 @@ TOOLS = [
             "properties": {
                 "query_type": {
                     "type": "string",
-                    "enum": ["count_wins", "dancer_record", "top_dancers", "contest_results", "custom_query"],
+                    "enum": ["count_wins", "dancer_record", "top_dancers", "contest_results", "judge_statistics", "custom_query"],
                     "description": "Type of query to run"
                 },
                 "filters": {
@@ -183,6 +183,48 @@ def execute_query_csa_data(query_type, filters, limit=10):
                 records = filtered_df[['Contest', 'Year', 'Division', 'Placement', 'Male Name', 'Female Name', 'Organization']].head(limit)
                 result["records"] = records.to_dict('records')
                 result["message"] = f"Found {len(filtered_df)} contest results, showing first {min(len(records), limit)}"
+        
+        elif query_type == "judge_statistics":
+            # Count judges across all 5 judge columns
+            judge_columns = ['Judge 1', 'Judge 2', 'Judge 3', 'Judge 4', 'Judge 5']
+            
+            # Check if judge columns exist in the data
+            available_judge_columns = [col for col in judge_columns if col in filtered_df.columns]
+            
+            if not available_judge_columns:
+                result["results"] = []
+                result["message"] = "No judge columns found in the database"
+                result["note"] = "Judge data may not be available for this dataset"
+            else:
+                # Combine all judge columns into one series
+                all_judges_list = []
+                for col in available_judge_columns:
+                    judges_in_col = filtered_df[col].dropna()
+                    all_judges_list.extend(judges_in_col.tolist())
+                
+                if not all_judges_list:
+                    result["results"] = []
+                    result["message"] = "No judge data found in the filtered records"
+                    result["records_with_judge_data"] = 0
+                    result["records_without_judge_data"] = len(filtered_df)
+                else:
+                    # Count judge occurrences
+                    judge_series = pd.Series(all_judges_list)
+                    judge_counts = judge_series.value_counts().head(limit)
+                    
+                    # Calculate statistics about judge data completeness
+                    records_with_judges = filtered_df[available_judge_columns].notna().any(axis=1).sum()
+                    records_without_judges = len(filtered_df) - records_with_judges
+                    
+                    result["results"] = [
+                        {"judge_name": judge, "times_judged": int(count)} 
+                        for judge, count in judge_counts.items()
+                    ]
+                    result["message"] = f"Top {min(len(judge_counts), limit)} judges by contest appearances"
+                    result["total_contest_records"] = len(filtered_df)
+                    result["records_with_judge_data"] = int(records_with_judges)
+                    result["records_without_judge_data"] = int(records_without_judges)
+                    result["note"] = f"{records_without_judges} records have no judge data (likely NSDC contests or incomplete data)"
         
         elif query_type == "custom_query":
             # Return filtered data sample

@@ -138,6 +138,20 @@ In ONE response, clarify:
 - **Wins** = Only rows where Placement = 1
 - Show both numbers for comparison
 
+### "Who has judged the most contests?"
+In ONE response, show:
+```python
+# Use judge_statistics query type
+query_csa_data(query_type="judge_statistics", filters={"organization": "Both"}, limit=25)
+# Counts appearances across Judge 1-5 columns
+# Present results with data completeness transparency
+```
+**Judge Data Notes:**
+- Judge information is in 5 columns: Judge 1, Judge 2, Judge 3, Judge 4, Judge 5  
+- Many NSDC records have no judge data (NaN values)
+- Always report data completeness: "X records with judge data, Y without"
+- These are "recorded judging assignments" not necessarily all judging activity
+
 ## 6. RED FLAGS - When to Double-Check
 
 - If a dancer suddenly has way more/fewer wins than expected
