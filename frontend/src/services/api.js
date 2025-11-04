@@ -9,9 +9,15 @@ const api = axios.create({
   },
 });
 
-export const askQuestion = async (question) => {
+export const askQuestion = async (question, userContact = 'Anonymous', sessionId = null) => {
   try {
-    const response = await api.post('/ask', { question }, {
+    const requestData = { 
+      question,
+      user_contact: userContact,
+      session_id: sessionId
+    };
+    
+    const response = await api.post('/ask', requestData, {
       timeout: 45000 // 45 second timeout for complex queries
     });
     return response.data;

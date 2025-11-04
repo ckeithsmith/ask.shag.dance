@@ -3,6 +3,7 @@ import './App.css';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import LoadingSpinner from './components/LoadingSpinner';
+import UserRegistration from './components/UserRegistration';
 import * as api from './services/api';
 
 function App() {
@@ -10,6 +11,8 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState([]);
   const [error, setError] = useState(null);
+  const [userInfo, setUserInfo] = useState(null);
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -48,13 +51,15 @@ function App() {
     setError(null);
 
     try {
-      const response = await api.askQuestion(userMessage);
+      const response = await api.askQuestion(userMessage, userInfo?.name || 'Anonymous', sessionId);
       
       const botMessage = {
         id: Date.now() + 1,
-        text: response.answer || response,  // Handle both {answer: "..."} and direct string responses
+        queryId: response.query_id, // Store query ID for feedback
+        text: response.answer || response,
         sender: 'assistant',
-        timestamp: new Date()
+        timestamp: new Date(),
+        responseTime: response.response_time_ms
       };
 
       setMessages(prev => [...prev, botMessage]);
@@ -80,8 +85,20 @@ function App() {
     handleSendMessage(question);
   };
 
+  const handleUserRegistered = (userData) => {
+    setUserInfo(userData);
+    console.log('User registered:', userData);
+  };
+
+  const handleFeedbackSubmitted = (queryId, comment) => {
+    console.log('Feedback submitted for query:', queryId, 'Comment:', comment);
+  };
+
   return (
     <div className="App flex flex-col min-h-screen">
+      {/* User Registration Modal */}
+      <UserRegistration onUserRegistered={handleUserRegistered} />
+      
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-lg">
         <div className="max-w-4xl mx-auto">

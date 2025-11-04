@@ -1,5 +1,6 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import FeedbackButton from './FeedbackButton';
 
 const ChatMessage = ({ message }) => {
   const isUser = message.sender === 'user';
@@ -63,6 +64,16 @@ const ChatMessage = ({ message }) => {
         {message.timestamp && (
           <div className={`text-xs mt-1 opacity-70 ${isUser ? 'text-blue-100' : 'text-gray-500'}`}>
             {message.timestamp.toLocaleTimeString()}
+            {message.responseTime && (
+              <span className="ml-2">({message.responseTime}ms)</span>
+            )}
+          </div>
+        )}
+        
+        {/* Feedback Button for Assistant Messages */}
+        {!isUser && !message.isError && message.queryId && (
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <FeedbackButton messageId={message.queryId} />
           </div>
         )}
       </div>
