@@ -142,7 +142,7 @@ In ONE response, clarify:
 In ONE response, show:
 ```python
 # Use judge_statistics query type
-query_csa_data(query_type="judge_statistics", filters={"organization": "Both"}, limit=25)
+query_csa_data(query_type="judge_statistics", filters={{"organization": "Both"}}, limit=25)
 # Counts appearances across Judge 1-5 columns
 # Present results with data completeness transparency
 ```
