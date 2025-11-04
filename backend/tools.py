@@ -47,6 +47,14 @@ TOOLS = [
                             "type": "integer",
                             "description": "Filter by year"
                         },
+                        "start_year": {
+                            "type": "integer",
+                            "description": "Filter by starting year (inclusive) - use with end_year for year ranges"
+                        },
+                        "end_year": {
+                            "type": "integer",
+                            "description": "Filter by ending year (inclusive) - use with start_year for year ranges"
+                        },
                         "gender": {
                             "type": "string",
                             "enum": ["male", "female"],
@@ -131,6 +139,14 @@ def execute_query_csa_data(query_type, filters, limit=10):
         if 'year' in filters and filters['year']:
             filtered_df = filtered_df[filtered_df['Year'] == filters['year']]
             print(f"📅 Year filter '{filters['year']}': {len(filtered_df)} records")
+        
+        # Year range filtering (for queries like "last 10 years")
+        if 'start_year' in filters and 'end_year' in filters and filters['start_year'] and filters['end_year']:
+            filtered_df = filtered_df[
+                (filtered_df['Year'] >= filters['start_year']) & 
+                (filtered_df['Year'] <= filters['end_year'])
+            ]
+            print(f"📅 Year range filter {filters['start_year']}-{filters['end_year']}: {len(filtered_df)} records")
         
         if 'contest' in filters and filters['contest']:
             filtered_df = filtered_df[filtered_df['Contest'].str.contains(filters['contest'], case=False, na=False)]

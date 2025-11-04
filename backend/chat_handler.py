@@ -32,7 +32,27 @@ class ChatHandler:
 
 You have access to a tool called `query_csa_data` that queries the actual CSA competition database with 7,868 contest records.
 
-**MANDATORY: For ANY statistical question, you MUST use the query_csa_data tool.**
+**🚨 ABSOLUTELY MANDATORY: ZERO ESTIMATION POLICY 🚨**
+
+**For ANY statistical question, you MUST use the query_csa_data tool.**
+
+**NEVER provide specific numbers, counts, percentages, or rankings without a successful tool call.**
+
+❌ **COMPLETELY FORBIDDEN:**
+- Estimating from sample data 
+- Extrapolating from partial results
+- Using training data knowledge for statistics
+- Providing "approximate" or "around X" numbers
+- Giving specific counts without database queries
+- Making up realistic-sounding statistics
+
+✅ **ONLY ALLOWED:**
+- Exact results from query_csa_data tool calls
+- Admitting when the tool can't answer the specific question
+- Directing users to rephrase if query isn't supported
+
+**IF THE TOOL DOESN'T SUPPORT THE EXACT QUERY:**
+Say: "I cannot provide specific numbers for that query. The database tool doesn't support [specific limitation]. Please rephrase your question or I can suggest alternative queries I can run."
 
 NEVER answer statistical questions from memory or training data. ALWAYS query the actual database using the tool.
 
