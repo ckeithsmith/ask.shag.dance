@@ -91,6 +91,11 @@ def execute_query_csa_data(query_type, filters, limit=10):
         dict: Query results with metadata
     """
     
+    # SECURITY: Enforce absolute maximum limit
+    if limit > 50:
+        limit = 50
+        print(f"🔒 SECURITY: Limit capped at 50 (was {limit})")
+    
     try:
         # Load the CSV data - handle both development and production paths
         current_dir = Path(__file__).parent

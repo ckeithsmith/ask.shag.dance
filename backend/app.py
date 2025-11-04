@@ -1,13 +1,20 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
+import time
+import json
+import logging
 from dotenv import load_dotenv
 from data_loader import data_loader
 from chat_handler import chat_handler
 from security import rate_limit, validate_input, filter_response
+from database import db_manager
 
 # Load environment variables
 load_dotenv()
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__, static_folder=None)  # Disable Flask's default static handling
 CORS(app)
@@ -44,12 +51,16 @@ def health_check():
     })
 
 @app.route('/api/ask', methods=['POST'])
-@rate_limit(max_requests=10, window_minutes=1)
+@rate_limit(max_requests=5, window_minutes=1)
 def ask_question():
     """Main chat endpoint"""
+    start_time = time.time()
+    
     try:
         data = request.get_json()
         user_question = data.get('question', '').strip()
+        user_contact = data.get('user_contact', 'Anonymous')
+        session_id = data.get('session_id')
         
         if not user_question:
             return jsonify({"error": "No question provided"}), 400
@@ -59,18 +70,53 @@ def ask_question():
         if not is_valid:
             return jsonify({"error": validation_message}), 400
         
+        # Find or identify user
+        ip_address = request.remote_addr
+        user_info = None
+        user_id = None
+        
+        if user_contact and user_contact != 'Anonymous':
+            user_info = db_manager.find_user(ip_address, user_contact)
+            if user_info:
+                user_id = user_info[0]
+        
+        # Log the query attempt
+        logging.info(f"❓ Query from {ip_address} ({user_contact}): {user_question[:100]}")
+        
         # Process with Claude
-        response_text = chat_handler.process_query(user_question)
+        result = chat_handler.process_query(user_question)
+        if isinstance(result, tuple):
+            response_text, tool_calls_used = result
+        else:
+            response_text = result
+            tool_calls_used = None
         
         # Filter response
         filtered_response = filter_response(response_text)
         
+        # Calculate response time
+        response_time_ms = int((time.time() - start_time) * 1000)
+        
+        # Log query to database
+        query_id = db_manager.log_query(
+            user_id=user_id,
+            ip_address=ip_address,
+            question=user_question,
+            response=filtered_response,
+            response_time_ms=response_time_ms,
+            tool_calls_used=tool_calls_used,
+            session_id=session_id
+        )
+        
         return jsonify({
             "answer": filtered_response,
+            "query_id": query_id,
+            "response_time_ms": response_time_ms,
             "status": "success"
         })
         
     except Exception as e:
+        logging.error(f"Server error processing query: {str(e)}", exc_info=True)
         return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 @app.route('/api/suggested-questions', methods=['GET'])
@@ -89,6 +135,84 @@ def get_suggested_questions():
         "Show me contest trends over the years"
     ]
     return jsonify({"suggestions": suggestions})
+
+@app.route('/api/register-user', methods=['POST'])
+def register_user():
+    """Register a new user or update existing user info"""
+    try:
+        data = request.get_json()
+        
+        # Extract user info
+        name = data.get('name', '').strip()
+        email = data.get('email', '').strip() or None
+        device_fingerprint = data.get('device_fingerprint')
+        
+        if not name:
+            return jsonify({"error": "Name is required"}), 400
+        
+        # Get client info
+        ip_address = request.remote_addr
+        user_agent = request.headers.get('User-Agent')
+        
+        # Register/update user in database
+        user_id = db_manager.register_user(
+            name=name,
+            email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            device_fingerprint=device_fingerprint
+        )
+        
+        logging.info(f"🆔 User registered: {name} ({email}) from {ip_address}")
+        
+        return jsonify({
+            "status": "registered",
+            "user_id": user_id,
+            "message": "User registered successfully"
+        })
+        
+    except Exception as e:
+        logging.error(f"Registration error: {e}")
+        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
+
+@app.route('/api/feedback', methods=['POST'])
+def submit_feedback():
+    """Submit user feedback on query responses"""
+    try:
+        data = request.get_json()
+        
+        # Extract feedback info
+        query_id = data.get('query_id')
+        user_id = data.get('user_id')
+        feedback_type = data.get('feedback_type', 'incorrect_answer')
+        comment = data.get('comment', '').strip() or None
+        
+        if not query_id:
+            return jsonify({"error": "Query ID is required"}), 400
+        
+        # Get client info
+        ip_address = request.remote_addr
+        
+        # Log feedback
+        feedback_id = db_manager.log_feedback(
+            query_id=query_id,
+            user_id=user_id,
+            feedback_type=feedback_type,
+            comment=comment,
+            ip_address=ip_address
+        )
+        
+        logging.info(f"📝 Feedback submitted: {feedback_type} for query {query_id}")
+        
+        return jsonify({
+            "status": "success",
+            "feedback_id": feedback_id,
+            "message": "Feedback submitted successfully"
+        })
+        
+    except Exception as e:
+        logging.error(f"Feedback error: {e}")
+        return jsonify({"error": f"Failed to submit feedback: {str(e)}"}), 500
 
 # Serve React frontend (for production)
 build_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend/build'))
