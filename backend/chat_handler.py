@@ -15,6 +15,22 @@ _response_cache = {}
 _cache_lock = Lock()
 CACHE_EXPIRY_SECONDS = 300  # 5 minutes
 
+def convert_to_json_serializable(obj):
+    """Convert numpy/pandas types to native Python types for JSON serialization"""
+    if isinstance(obj, dict):
+        return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_json_serializable(item) for item in obj]
+    elif isinstance(obj, (np.integer, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif hasattr(obj, 'item'):  # numpy scalar
+        return obj.item()
+    return obj
+
 class ChatHandler:
     def __init__(self):
         self.client = None
@@ -112,8 +128,8 @@ The CSV has these columns:
 
 ## 3. COMMON DIVISIONS
 - **Pro**: Highest competitive level
-- **Amateur**: Mid-level competitors
-- **Novice**: Beginners
+- **Amateur**: Beginner competitors
+- **Novice**: Mid-level competitors
 - **Junior 1 & Junior 2**: Youth divisions
 - **Sr Pro**: Senior professional
 - **Non-Pro**: NSDC non-professional division
@@ -546,7 +562,7 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": tool_use.id,
-                        "content": json.dumps(tool_result, indent=2)
+                        "content": json.dumps(convert_to_json_serializable(tool_result), indent=2)
                     })
                 
                 # Add ALL tool results in a single user message
