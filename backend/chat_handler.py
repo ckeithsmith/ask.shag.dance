@@ -101,8 +101,8 @@ The CSV has these columns:
 
 ## 3. COMMON DIVISIONS
 - **Pro**: Highest competitive level
-- **Amateur**: Mid-level competitors
-- **Novice**: Beginners
+- **Amateur**: Beginner competitors
+- **Novice**: Mid-level competitors
 - **Junior 1 & Junior 2**: Youth divisions
 - **Sr Pro**: Senior professional
 - **Non-Pro**: NSDC non-professional division
