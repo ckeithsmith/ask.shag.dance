@@ -1,9 +1,36 @@
 import os
 import json
 import numpy as np  # Add numpy import for JSON serialization
+import time
+import random
+import hashlib
+from threading import Lock
 from anthropic import Anthropic
+from anthropic import RateLimitError, APITimeoutError, APIConnectionError
 from data_loader import data_loader
 from tools import TOOLS, execute_query_csa_data
+from query_cache import query_cache  # Use existing cache system
+
+# Simple in-memory cache for API responses (fallback)
+_response_cache = {}
+_cache_lock = Lock()
+CACHE_EXPIRY_SECONDS = 300  # 5 minutes
+
+def convert_to_json_serializable(obj):
+    """Convert numpy/pandas types to native Python types for JSON serialization"""
+    if isinstance(obj, dict):
+        return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_json_serializable(item) for item in obj]
+    elif isinstance(obj, (np.integer, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif hasattr(obj, 'item'):  # numpy scalar
+        return obj.item()
+    return obj
 
 class ChatHandler:
     def __init__(self):
@@ -102,8 +129,8 @@ The CSV has these columns:
 
 ## 3. COMMON DIVISIONS
 - **Pro**: Highest competitive level
-- **Amateur**: Mid-level competitors
-- **Novice**: Beginners
+- **Amateur**: Beginner competitors
+- **Novice**: Mid-level competitors
 - **Junior 1 & Junior 2**: Youth divisions
 - **Sr Pro**: Senior professional
 - **Non-Pro**: NSDC non-professional division
@@ -377,13 +404,104 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
 
 **Always use numbered lists for rankings and bullet points for categories. Keep it clean and readable."""
 
+    def _get_cache_key(self, user_question, system_prompt):
+        """Generate cache key for query+system prompt"""
+        content = user_question + system_prompt
+        return hashlib.md5(content.encode()).hexdigest()
+    
+    def _get_cached_response(self, cache_key):
+        """Get cached response if valid"""
+        with _cache_lock:
+            if cache_key in _response_cache:
+                cached_data, timestamp = _response_cache[cache_key]
+                if time.time() - timestamp < CACHE_EXPIRY_SECONDS:
+                    print("⚡ Using cached response")
+                    return cached_data
+                else:
+                    # Remove expired cache entry
+                    del _response_cache[cache_key]
+        return None
+    
+    def _cache_response(self, cache_key, response):
+        """Cache the response"""
+        with _cache_lock:
+            _response_cache[cache_key] = (response, time.time())
+            # Clean old entries if cache gets too big
+            if len(_response_cache) > 100:
+                oldest_key = min(_response_cache.keys(), 
+                               key=lambda k: _response_cache[k][1])
+                del _response_cache[oldest_key]
+
+    def _call_anthropic_with_retry(self, **kwargs):
+        """Call Anthropic API with exponential backoff retry logic optimized for Heroku"""
+        max_retries = 2  # Reduced to 2 retries to stay under 30s timeout
+        base_delay = 0.5  # Start with 500ms
+        max_delay = 8  # Maximum 8s delay to avoid Heroku timeout
+        
+        for attempt in range(max_retries + 1):
+            try:
+                return self.client.messages.create(**kwargs)
+            
+            except RateLimitError as e:
+                if attempt == max_retries:
+                    print(f"❌ Rate limit exceeded after {max_retries} retries - returning cached/fallback response")
+                    # Try to return a cached response or graceful fallback
+                    return type('MockResponse', (), {
+                        'content': [type('MockContent', (), {'text': 
+                            "I'm experiencing high demand right now. Please try your question again in a moment. "
+                            "For immediate help, try asking a more specific question or check the suggested questions below."})()],
+                        'stop_reason': 'rate_limited'
+                    })()
+                
+                # Fast exponential backoff with jitter - stay under Heroku 30s timeout
+                delay = min(base_delay * (2 ** attempt) + random.uniform(0, 0.5), max_delay)
+                print(f"⏸️ Rate limited (attempt {attempt + 1}/{max_retries + 1}). Waiting {delay:.1f}s...")
+                time.sleep(delay)
+                
+            except (APITimeoutError, APIConnectionError) as e:
+                if attempt == max_retries:
+                    print(f"❌ Connection failed after {max_retries} retries")
+                    return type('MockResponse', (), {
+                        'content': [type('MockContent', (), {'text': 
+                            "Connection timeout. Please try a simpler question or wait a moment and try again."})()],
+                        'stop_reason': 'timeout'
+                    })()
+                    
+                # Quick retry for connection issues
+                delay = min(base_delay * (1.2 ** attempt), 3)  # Max 3s delay
+                print(f"🔄 {type(e).__name__} (attempt {attempt + 1}/{max_retries + 1}). Retrying in {delay:.1f}s...")
+                time.sleep(delay)
+                
+            except Exception as e:
+                # For other errors, don't retry but handle gracefully
+                print(f"❌ Non-retryable error: {type(e).__name__}: {e}")
+                return type('MockResponse', (), {
+                    'content': [type('MockContent', (), {'text': 
+                        f"I encountered an error processing your question. Please try rephrasing it or contact support if this continues."})()],
+                    'stop_reason': 'error'
+                })()
+
     def process_query(self, user_question):
         """Process user query with Claude API and function calling"""
         if not self.client:
             return "Error: API not configured. Please check environment variables."
         
         try:
+            # Check smart cache first for cacheable queries
+            if query_cache.should_cache_query(user_question):
+                cached_response = query_cache.get(user_question)
+                if cached_response:
+                    print(f"🎯 Smart cache HIT for query: {user_question[:50]}...")
+                    return cached_response
+            
             system_prompt = self.create_system_prompt()
+            
+            # Check legacy cache as fallback
+            cache_key = self._get_cache_key(user_question, system_prompt)
+            cached_response = self._get_cached_response(cache_key)
+            if cached_response:
+                print(f"🎯 Legacy cache HIT for query: {user_question[:50]}...")
+                return cached_response
             
             # Add some recent data context for better answers
             sample_data = data_loader.get_csv_sample(5)
@@ -394,8 +512,8 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
             
             print(f"🎯 Processing query: {user_question}")
             
-            # Initial API call with tools
-            response = self.client.messages.create(
+            # Initial API call with tools using retry logic
+            response = self._call_anthropic_with_retry(
                 model="claude-sonnet-4-5-20250929",
                 max_tokens=3000,
                 system=system_prompt + context_prompt,
@@ -457,7 +575,7 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
                 print("🔄 Continuing conversation with all tool results...")
                 
                 # Continue conversation
-                response = self.client.messages.create(
+                response = self._call_anthropic_with_retry(
                     model="claude-sonnet-4-5-20250929",
                     max_tokens=3000,
                     system=system_prompt + context_prompt,
@@ -472,6 +590,19 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
             for block in response.content:
                 if hasattr(block, 'text'):
                     final_text += block.text
+            
+            # Cache successful responses in both systems
+            if final_text and not final_text.startswith("Error:") and len(final_text) > 50:
+                # Store in legacy cache
+                self._cache_response(cache_key, final_text)
+                
+                # Store in smart cache if query is cacheable
+                if query_cache.should_cache_query(user_question):
+                    # Use longer TTL for statistical queries that don't change often
+                    ttl = 600 if any(pattern in user_question.lower() for pattern in 
+                        ['who has the most', 'top dancers', 'win rate', 'career statistics']) else 300
+                    query_cache.set(user_question, final_text, ttl=ttl)
+                    print(f"💾 Cached query in smart cache (TTL: {ttl}s)")
             
             print("✅ Query processing complete")
             return final_text
