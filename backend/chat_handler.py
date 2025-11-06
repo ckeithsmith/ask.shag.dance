@@ -1,5 +1,6 @@
 import os
 import json
+import numpy as np  # Add numpy import for JSON serialization
 import time
 import random
 import hashlib
@@ -636,6 +637,21 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
             else:
                 # Return more specific error information for debugging
                 return f"Processing error ({error_type}): {error_msg[:100]}. Please try rephrasing your question or contact support if this persists."
+
+def convert_to_json_serializable(obj):
+    """Convert numpy types and other non-JSON types to JSON-serializable formats"""
+    if isinstance(obj, dict):
+        return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_json_serializable(item) for item in obj]
+    elif isinstance(obj, (np.integer, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 # Global instance
 chat_handler = ChatHandler()
