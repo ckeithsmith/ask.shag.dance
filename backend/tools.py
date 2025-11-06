@@ -17,7 +17,7 @@ TOOLS = [
             "properties": {
                 "query_type": {
                     "type": "string",
-                    "enum": ["count_wins", "dancer_record", "top_dancers", "contest_results", "judge_statistics", "unique_counts", "win_statistics", "partnership_analysis", "career_statistics", "yearly_trends", "custom_query"],
+                    "enum": ["count_wins", "dancer_record", "dancer_search", "smart_dancer_lookup", "top_dancers", "contest_results", "judge_statistics", "unique_counts", "win_statistics", "partnership_analysis", "career_statistics", "yearly_trends", "custom_query"],
                     "description": "Type of query to run"
                 },
                 "filters": {
@@ -209,6 +209,60 @@ def execute_query_csa_data(query_type, filters, limit=10):
                 result["records"] = records.to_dict('records')
                 result["message"] = f"Found {len(filtered_df)} total records, showing first {min(len(records), limit)}"
         
+        elif query_type == "dancer_search":
+            # Smart search for a dancer name - checks both gender columns AND common variations
+            search_name = filters.get('dancer_name', '').strip()
+            if not search_name:
+                result["error"] = "dancer_name is required for dancer_search"
+                return result
+            
+            # Search in both Male Name and Female Name columns
+            male_matches = df[df['Male Name'].str.contains(search_name, case=False, na=False)]['Male Name'].unique()
+            female_matches = df[df['Female Name'].str.contains(search_name, case=False, na=False)]['Female Name'].unique()
+            
+            all_matches = list(set(list(male_matches) + list(female_matches)))
+            all_matches.sort()
+            
+            if len(all_matches) == 0:
+                result["matches"] = []
+                result["message"] = f"No dancers found matching '{search_name}'"
+                result["suggestion"] = "Try checking the spelling or using fewer characters"
+            elif len(all_matches) == 1:
+                # Exact match found - return their competition summary
+                exact_name = all_matches[0]
+                dancer_df = df[(df['Male Name'] == exact_name) | (df['Female Name'] == exact_name)]
+                
+                # Apply any additional filters
+                for filter_key, filter_value in filters.items():
+                    if filter_key == 'dancer_name':
+                        continue
+                    if filter_key == 'organization' and filter_value and filter_value != 'Both':
+                        dancer_df = dancer_df[dancer_df['Organization'] == filter_value]
+                    elif filter_key == 'division' and filter_value:
+                        dancer_df = dancer_df[dancer_df['Division'] == filter_value]
+                    elif filter_key == 'start_year' and filter_value:
+                        end_year = filters.get('end_year', 2024)
+                        dancer_df = dancer_df[(dancer_df['Year'] >= filter_value) & (dancer_df['Year'] <= end_year)]
+                
+                total_contests = len(dancer_df)
+                wins = len(dancer_df[dancer_df['Placement'] == 1])
+                divisions = dancer_df['Division'].unique().tolist()
+                years = f"{dancer_df['Year'].min()}-{dancer_df['Year'].max()}"
+                
+                result["exact_match"] = exact_name
+                result["total_contests"] = total_contests
+                result["wins"] = wins
+                result["divisions"] = divisions
+                result["years_active"] = years
+                result["message"] = f"Found exact match: {exact_name} ({wins} wins, {total_contests} contests)"
+            else:
+                # Multiple matches - return list for user to pick
+                result["matches"] = all_matches[:10]  # Limit to 10 suggestions
+                result["match_count"] = len(all_matches)
+                result["message"] = f"Found {len(all_matches)} potential matches for '{search_name}'"
+                if len(all_matches) > 10:
+                    result["note"] = "Showing first 10 matches. Try being more specific."
+        
         elif query_type == "contest_results":
             # Get results from specific contests
             if len(filtered_df) == 0:
@@ -271,6 +325,94 @@ def execute_query_csa_data(query_type, filters, limit=10):
                 result["sample_records"] = sample.to_dict('records')
                 result["message"] = f"Custom query returned {len(filtered_df)} records, showing first {min(len(sample), limit)}"
         
+        # ========== SMART DANCER LOOKUP (PREVENTS MULTI-TURN CONVERSATIONS) ==========
+        elif query_type == "smart_dancer_lookup":
+            # This query type prevents the "Brittney Miller" multi-call issue from Heroku logs
+            search_name = filters.get('dancer_name', '').strip()
+            if not search_name:
+                result["error"] = "dancer_name is required for smart_dancer_lookup"
+                return result
+            
+            # Comprehensive search that handles all cases in ONE call
+            print(f"🔍 Smart lookup for '{search_name}'")
+            
+            # 1. Try exact matches in both gender columns
+            exact_male_df = df[df['Male Name'] == search_name]
+            exact_female_df = df[df['Female Name'] == search_name]
+            exact_combined_df = pd.concat([exact_male_df, exact_female_df]).drop_duplicates()
+            
+            if len(exact_combined_df) > 0:
+                print(f"✅ Found exact match: {len(exact_combined_df)} records")
+                dancer_df = exact_combined_df
+            else:
+                # 2. Try partial matches
+                partial_male_df = df[df['Male Name'].str.contains(search_name, case=False, na=False)]
+                partial_female_df = df[df['Female Name'].str.contains(search_name, case=False, na=False)]
+                partial_combined_df = pd.concat([partial_male_df, partial_female_df]).drop_duplicates()
+                
+                if len(partial_combined_df) > 0:
+                    print(f"🔍 Using partial match: {len(partial_combined_df)} records")
+                    # Get unique name matches for user feedback
+                    male_matches = partial_male_df['Male Name'].unique()
+                    female_matches = partial_female_df['Female Name'].unique()
+                    all_matches = list(set(list(male_matches) + list(female_matches)))
+                    
+                    result["possible_matches"] = all_matches[:10]  # Limit for readability
+                    result["message"] = f"No exact match for '{search_name}'. Found {len(all_matches)} possible matches."
+                    return result
+                else:
+                    result["message"] = f"No dancers found matching '{search_name}' in any form."
+                    return result
+            
+            # Apply additional filters
+            if 'organization' in filters and filters['organization'] and filters['organization'] != 'Both':
+                dancer_df = dancer_df[dancer_df['Organization'] == filters['organization']]
+            
+            if 'division' in filters and filters['division']:
+                dancer_df = dancer_df[dancer_df['Division'] == filters['division']]
+            
+            if 'start_year' in filters and filters['start_year']:
+                end_year = filters.get('end_year', dancer_df['Year'].max())
+                dancer_df = dancer_df[(dancer_df['Year'] >= filters['start_year']) & 
+                                    (dancer_df['Year'] <= end_year)]
+            
+            # Return comprehensive summary to prevent follow-up queries
+            total_contests = len(dancer_df)
+            total_wins = len(dancer_df[dancer_df['Placement'] == 1])
+            
+            # Division breakdown
+            division_summary = {}
+            for div in dancer_df['Division'].unique():
+                div_df = dancer_df[dancer_df['Division'] == div]
+                div_wins = len(div_df[div_df['Placement'] == 1])
+                division_summary[div] = {"contests": len(div_df), "wins": div_wins}
+            
+            # Career span
+            if total_contests > 0:
+                career_start = int(dancer_df['Year'].min())
+                career_end = int(dancer_df['Year'].max())
+                career_span = f"{career_start}-{career_end}" if career_start != career_end else str(career_start)
+            else:
+                career_span = "No data"
+            
+            result["dancer_name"] = search_name
+            result["summary"] = {
+                "total_contests": total_contests,
+                "total_wins": total_wins, 
+                "win_rate": round((total_wins/total_contests)*100, 1) if total_contests > 0 else 0,
+                "career_span": career_span,
+                "organizations": dancer_df['Organization'].unique().tolist(),
+                "division_breakdown": division_summary
+            }
+            
+            # Sample recent contests for context
+            recent_contests = dancer_df.nlargest(min(5, limit), 'Year')[
+                ['Contest', 'Year', 'Division', 'Placement', 'Organization']
+            ].to_dict('records')
+            
+            result["recent_contests"] = recent_contests
+            result["message"] = f"Complete profile for {search_name}: {total_wins} wins in {total_contests} contests"
+            
         # ========== NEW HIGH-VALUE QUERY TYPES ==========
         
         # UNIQUE COUNTS
