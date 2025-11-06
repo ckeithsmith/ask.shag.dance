@@ -1,8 +1,25 @@
 import os
 import json
+import numpy as np
 from anthropic import Anthropic
 from data_loader import data_loader
 from tools import TOOLS, execute_query_csa_data
+
+def convert_to_json_serializable(obj):
+    """Convert numpy/pandas types to native Python types for JSON serialization"""
+    if isinstance(obj, dict):
+        return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_json_serializable(item) for item in obj]
+    elif isinstance(obj, (np.integer, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif hasattr(obj, 'item'):  # numpy scalar
+        return obj.item()
+    return obj
 
 class ChatHandler:
     def __init__(self):
@@ -451,7 +468,7 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": tool_use.id,
-                        "content": json.dumps(tool_result, indent=2)
+                        "content": json.dumps(convert_to_json_serializable(tool_result), indent=2)
                     })
                 
                 # Add ALL tool results in a single user message
