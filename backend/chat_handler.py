@@ -1,6 +1,10 @@
 import os
 import json
+import time
+import random
+import hashlib
 import numpy as np  # Add numpy import for JSON serialization
+from threading import Lock
 from anthropic import Anthropic
 from anthropic import RateLimitError, APITimeoutError, APIConnectionError
 from data_loader import data_loader
