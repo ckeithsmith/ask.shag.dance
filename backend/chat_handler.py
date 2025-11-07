@@ -190,7 +190,7 @@ In ONE response, clarify:
 In ONE response, show:
 ```python
 # Use judge_statistics query type
-query_csa_data(query_type="judge_statistics", filters={{"organization": "Both"}}, limit=25)
+query_csa_data(query_type="judge_statistics", filters={{"organization": "Both"}}, limit=100)
 # Counts appearances across Judge 1-5 columns
 # Present results with data completeness transparency
 ```
@@ -250,7 +250,7 @@ query_csa_data(
         "end_year": 2024,
         "organization": "CSA"
     }},
-    limit=10
+    limit=100
 )
 ```
 
@@ -298,7 +298,7 @@ Returns: Year-by-year table with male/female/total active dancers and year-over-
 analyze_csa_data(
     analysis_type="judge_dancer_frequency",
     filters={{"judge_name": "Vickie Chambers"}},
-    limit=20
+    limit=100
 )
 ```
 Returns: Which dancers this judge saw most often, with win rates when judged

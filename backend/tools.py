@@ -231,18 +231,44 @@ def execute_query_csa_data(query_type, filters, limit=100):
         if query_type == "count_wins" or query_type == "top_dancers":
             gender = filters.get('gender', 'male')
             name_column = 'Male Name' if gender == 'male' else 'Female Name'
-            
+
             if len(filtered_df) == 0:
                 result["results"] = []
                 result["message"] = f"No records found matching the filters"
             else:
                 counts = filtered_df[name_column].value_counts().head(limit)
-                
-                result["results"] = [
-                    {"name": name, "count": int(count)} 
+
+                # Raw results for backward compatibility
+                results_list = [
+                    {"name": name, "count": int(count)}
                     for name, count in counts.items()
                 ]
+
+                # Apply data protection
+                results_protected = DataProtector.enforce_limit(results_list, limit, f"{gender} dancers")
+
+                # Create rich formatted list
+                formatted_list = MarkdownFormatter.create_ranked_list(
+                    data=results_protected,
+                    name_key="name",
+                    value_key="count",
+                    value_label="wins",
+                    max_items=100
+                )
+
+                # Create bar chart
+                chart_url = chart_generator.create_bar_chart(
+                    data=results_protected[:20],  # Top 20 for chart
+                    label_key="name",
+                    value_key="count",
+                    title=f"Top {gender.capitalize()} Dancers by Wins"
+                )
+
+                result["results"] = results_protected
+                result["formatted_list"] = formatted_list
+                result["chart_base64"] = chart_url
                 result["message"] = f"Top {min(len(counts), limit)} {gender} dancers"
+                result["presentation_note"] = "Use formatted_list for display. Chart shows top 20."
         
         elif query_type == "dancer_record":
             # Get complete record for a specific dancer
@@ -345,20 +371,46 @@ def execute_query_csa_data(query_type, filters, limit=100):
                     # Count judge occurrences
                     judge_series = pd.Series(all_judges_list)
                     judge_counts = judge_series.value_counts().head(limit)
-                    
+
                     # Calculate statistics about judge data completeness
                     records_with_judges = filtered_df[available_judge_columns].notna().any(axis=1).sum()
                     records_without_judges = len(filtered_df) - records_with_judges
-                    
-                    result["results"] = [
-                        {"judge_name": judge, "times_judged": int(count)} 
+
+                    # Raw results for backward compatibility
+                    results_list = [
+                        {"judge_name": judge, "times_judged": int(count)}
                         for judge, count in judge_counts.items()
                     ]
+
+                    # Apply data protection
+                    results_protected = DataProtector.enforce_limit(results_list, limit, "judges")
+
+                    # Create rich formatted list
+                    formatted_list = MarkdownFormatter.create_ranked_list(
+                        data=results_protected,
+                        name_key="judge_name",
+                        value_key="times_judged",
+                        value_label="judging assignments",
+                        max_items=100
+                    )
+
+                    # Create bar chart
+                    chart_url = chart_generator.create_bar_chart(
+                        data=results_protected[:20],  # Top 20 for chart
+                        label_key="judge_name",
+                        value_key="times_judged",
+                        title="Top Judges by Contest Appearances"
+                    )
+
+                    result["results"] = results_protected
+                    result["formatted_list"] = formatted_list
+                    result["chart_base64"] = chart_url
                     result["message"] = f"Top {min(len(judge_counts), limit)} judges by contest appearances"
                     result["total_contest_records"] = len(filtered_df)
                     result["records_with_judge_data"] = int(records_with_judges)
                     result["records_without_judge_data"] = int(records_without_judges)
                     result["note"] = f"{records_without_judges} records have no judge data (likely NSDC contests or incomplete data)"
+                    result["presentation_note"] = "Use formatted_list for display. Chart shows top 20."
         
         elif query_type == "custom_query":
             # Return filtered data sample
