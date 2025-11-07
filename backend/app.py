@@ -77,7 +77,7 @@ def ask_question():
             logging.warning(f"⚠️ Data extraction attempt blocked: {user_question[:100]}")
             return jsonify({
                 "error": protection_message,
-                "suggestion": "Try asking for: 'top 10 Pro dancers' or 'analyze trends by year'"
+                "suggestion": "Try asking for: 'top 100 Pro dancers' or 'analyze trends by year'"
             }), 403
 
         # Find or identify user
