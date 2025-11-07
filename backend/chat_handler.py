@@ -522,5 +522,5 @@ def convert_to_json_serializable(obj):
     else:
         return obj
 
-# Global instance
+# Global instance  
 chat_handler = ChatHandler()
