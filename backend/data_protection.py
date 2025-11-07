@@ -34,7 +34,8 @@ class DataProtector:
                     f"Please ask for specific analysis like 'top 10 winners' or 'trends by year'.")
 
         # Check for suspicious requests for all data
-        if any(word in question_lower for word in ['all', 'every', 'complete']) and \
+        # BUT allow individual dancer/contest lookups with "complete" or "record"
+        if any(word in question_lower for word in ['all', 'every']) and \
            any(word in question_lower for word in ['dancer', 'contest', 'record', 'entry']):
             if not any(word in question_lower for word in ['top', 'best', 'most', 'analysis', 'trend']):
                 return (False,
