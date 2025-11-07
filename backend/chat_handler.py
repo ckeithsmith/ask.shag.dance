@@ -3,12 +3,11 @@ import json
 import time
 import random
 import hashlib
-import numpy as np  # Add numpy import for JSON serialization
 from threading import Lock
 from anthropic import Anthropic
 from anthropic import RateLimitError, APITimeoutError, APIConnectionError
 from data_loader import data_loader
-from tools import TOOLS, execute_query_csa_data
+from tools import TOOLS, execute_query_csa_data, execute_analyze_csa_data
 from query_cache import query_cache  # Use existing cache system
 
 # Simple in-memory cache for API responses (fallback)
@@ -17,16 +16,17 @@ _cache_lock = Lock()
 CACHE_EXPIRY_SECONDS = 300  # 5 minutes
 
 def convert_to_json_serializable(obj):
-    """Convert numpy/pandas types to native Python types for JSON serialization"""
+    """Convert pandas types to native Python types for JSON serialization"""
     if isinstance(obj, dict):
         return {key: convert_to_json_serializable(value) for key, value in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_json_serializable(item) for item in obj]
-    elif isinstance(obj, (np.integer, np.int64)):
+    # Handle numpy types without importing numpy (check type name)
+    elif type(obj).__name__ in ('int64', 'int32', 'int_'):
         return int(obj)
-    elif isinstance(obj, (np.floating, np.float64)):
+    elif type(obj).__name__ in ('float64', 'float32', 'float_'):
         return float(obj)
-    elif isinstance(obj, np.ndarray):
+    elif type(obj).__name__ == 'ndarray':
         return obj.tolist()
     elif hasattr(obj, 'item'):  # numpy scalar
         return obj.item()
@@ -226,6 +226,120 @@ query_csa_data(query_type="career_statistics", filters={{"dancer_name": "Sam Wes
 ```python
 query_csa_data(query_type="yearly_trends", filters={{"metric": "entries", "organization": "CSA"}})
 ```
+
+## 🚨 CRITICAL: SMART DANCER LOOKUP - ALWAYS USE THIS FIRST
+
+**For ANY query about a specific dancer's record, career, or statistics:**
+
+✅ **MANDATORY: Use smart_dancer_lookup query type FIRST**
+❌ **FORBIDDEN: Using dancer_record, dancer_search, or custom_query for dancer names**
+❌ **FORBIDDEN: Trying multiple query types - smart_dancer_lookup handles everything**
+
+**Why this exists:** Prevents multiple API calls. smart_dancer_lookup does exact match, partial match,
+filtering, and complete summary in ONE tool call.
+
+### Smart Dancer Lookup Examples:
+
+**Q: "Show me Brittney Miller's CSA record from 2022-2024"**
+```python
+query_csa_data(
+    query_type="smart_dancer_lookup",
+    filters={{
+        "dancer_name": "Brittney Miller",
+        "start_year": 2022,
+        "end_year": 2024,
+        "organization": "CSA"
+    }},
+    limit=10
+)
+```
+
+**Q: "How many wins does Sam West have?"**
+```python
+query_csa_data(
+    query_type="smart_dancer_lookup",
+    filters={{"dancer_name": "Sam West", "organization": "Both"}}
+)
+```
+
+**Q: "Show Joey Sogluizzo's Pro record"**
+```python
+query_csa_data(
+    query_type="smart_dancer_lookup",
+    filters={{"dancer_name": "Joey Sogluizzo", "division": "Pro"}}
+)
+```
+
+**What smart_dancer_lookup returns:**
+- Exact or partial name matches (both Male Name and Female Name columns)
+- Total contests, total wins, win rate percentage
+- Career span (first year to last year)
+- Division breakdown (contests and wins per division)
+- Sample recent contests
+- ALL IN ONE RESPONSE - no follow-up calls needed
+
+**NEVER use dancer_record or custom_query when asking about a dancer by name. ALWAYS use smart_dancer_lookup.**
+
+## ANALYTICAL QUERIES - Use analyze_csa_data Tool
+
+**For statistical analysis, trends, and aggregations, use analyze_csa_data (NOT query_csa_data).**
+
+### Yearly Active Dancers:
+```python
+analyze_csa_data(
+    analysis_type="yearly_active_dancers",
+    filters={{"organization": "CSA"}}
+)
+```
+Returns: Year-by-year table with male/female/total active dancers and year-over-year change
+
+### Judge-Dancer Frequency:
+```python
+analyze_csa_data(
+    analysis_type="judge_dancer_frequency",
+    filters={{"judge_name": "Vickie Chambers"}},
+    limit=20
+)
+```
+Returns: Which dancers this judge saw most often, with win rates when judged
+
+### Judge Panel Combinations:
+```python
+analyze_csa_data(
+    analysis_type="judge_panel_combinations",
+    filters={{"min_occurrences": 10}}
+)
+```
+Returns: Which judges most frequently judge together
+
+### Judge-Dancer Outcome Analysis:
+```python
+analyze_csa_data(
+    analysis_type="judge_dancer_outcomes",
+    filters={{"dancer_name": "Sam West", "min_occurrences": 10}}
+)
+```
+Returns: Win rates with specific judges present vs overall win rate
+
+### Retention Analysis:
+```python
+analyze_csa_data(
+    analysis_type="retention_analysis",
+    filters={{"organization": "CSA"}}
+)
+```
+Returns: How many Amateur dancers eventually reach Pro
+
+### Career Progression Time:
+```python
+analyze_csa_data(
+    analysis_type="career_progression_time",
+    filters={{"organization": "Both"}}
+)
+```
+Returns: Average, fastest, slowest time from Amateur to Pro
+
+**CRITICAL: Use analyze_csa_data for aggregations/statistics. Use query_csa_data for individual records.**
 
 ## 6. RED FLAGS - When to Double-Check
 
@@ -433,51 +547,42 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
                 del _response_cache[oldest_key]
 
     def _call_anthropic_with_retry(self, **kwargs):
-        """Call Anthropic API with exponential backoff retry logic optimized for Heroku"""
-        max_retries = 2  # Reduced to 2 retries to stay under 30s timeout
-        base_delay = 0.5  # Start with 500ms
-        max_delay = 8  # Maximum 8s delay to avoid Heroku timeout
-        
+        """Call Anthropic API with FAST fail on rate limits for Heroku 30s timeout"""
+        max_retries = 1  # Only retry once - fail fast!
+
         for attempt in range(max_retries + 1):
             try:
                 return self.client.messages.create(**kwargs)
-            
+
             except RateLimitError as e:
-                if attempt == max_retries:
-                    print(f"❌ Rate limit exceeded after {max_retries} retries - returning cached/fallback response")
-                    # Try to return a cached response or graceful fallback
+                print(f"❌ Rate limit hit on attempt {attempt + 1}")
+
+                if attempt == 0:
+                    # One retry after 2 seconds
+                    print("⏸️ Waiting 2s before final attempt...")
+                    time.sleep(2)
+                else:
+                    # Fail immediately - don't block worker
+                    print("❌ Rate limit exceeded - returning graceful error")
                     return type('MockResponse', (), {
-                        'content': [type('MockContent', (), {'text': 
-                            "I'm experiencing high demand right now. Please try your question again in a moment. "
-                            "For immediate help, try asking a more specific question or check the suggested questions below."})()],
+                        'content': [type('MockContent', (), {'text':
+                            "I'm experiencing high demand right now. Please try your question again in 30 seconds."})()],
                         'stop_reason': 'rate_limited'
                     })()
-                
-                # Fast exponential backoff with jitter - stay under Heroku 30s timeout
-                delay = min(base_delay * (2 ** attempt) + random.uniform(0, 0.5), max_delay)
-                print(f"⏸️ Rate limited (attempt {attempt + 1}/{max_retries + 1}). Waiting {delay:.1f}s...")
-                time.sleep(delay)
-                
+
             except (APITimeoutError, APIConnectionError) as e:
-                if attempt == max_retries:
-                    print(f"❌ Connection failed after {max_retries} retries")
-                    return type('MockResponse', (), {
-                        'content': [type('MockContent', (), {'text': 
-                            "Connection timeout. Please try a simpler question or wait a moment and try again."})()],
-                        'stop_reason': 'timeout'
-                    })()
-                    
-                # Quick retry for connection issues
-                delay = min(base_delay * (1.2 ** attempt), 3)  # Max 3s delay
-                print(f"🔄 {type(e).__name__} (attempt {attempt + 1}/{max_retries + 1}). Retrying in {delay:.1f}s...")
-                time.sleep(delay)
-                
+                print(f"❌ Connection error: {type(e).__name__}")
+                return type('MockResponse', (), {
+                    'content': [type('MockContent', (), {'text':
+                        "Connection timeout. Please try again in a moment."})()],
+                    'stop_reason': 'timeout'
+                })()
+
             except Exception as e:
-                # For other errors, don't retry but handle gracefully
                 print(f"❌ Non-retryable error: {type(e).__name__}: {e}")
                 return type('MockResponse', (), {
-                    'content': [type('MockContent', (), {'text': 
-                        f"I encountered an error processing your question. Please try rephrasing it or contact support if this continues."})()],
+                    'content': [type('MockContent', (), {'text':
+                        "I encountered an error. Please rephrase your question."})()],
                     'stop_reason': 'error'
                 })()
 
@@ -555,7 +660,15 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
                             limit=tool_use.input.get("limit", 10)
                         )
                         print(f"✅ Tool result: {tool_result.get('message', 'Success')}")
-                    
+
+                    elif tool_use.name == "analyze_csa_data":
+                        tool_result = execute_analyze_csa_data(
+                            analysis_type=tool_use.input.get("analysis_type"),
+                            filters=tool_use.input.get("filters", {}),
+                            limit=tool_use.input.get("limit", 20)
+                        )
+                        print(f"✅ Analysis result: {tool_result.get('analysis', 'Success')}")
+
                     if not tool_result:
                         tool_result = {"error": "Tool execution failed"}
                     
@@ -639,17 +752,20 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
                 return f"Processing error ({error_type}): {error_msg[:100]}. Please try rephrasing your question or contact support if this persists."
 
 def convert_to_json_serializable(obj):
-    """Convert numpy types to JSON-serializable formats"""
+    """Convert pandas types to JSON-serializable formats"""
     if isinstance(obj, dict):
         return {key: convert_to_json_serializable(value) for key, value in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_json_serializable(item) for item in obj]
-    elif isinstance(obj, (np.integer, np.int64)):
+    # Handle numpy types without importing numpy (check type name)
+    elif type(obj).__name__ in ('int64', 'int32', 'int_'):
         return int(obj)
-    elif isinstance(obj, (np.floating, np.float64)):
+    elif type(obj).__name__ in ('float64', 'float32', 'float_'):
         return float(obj)
-    elif isinstance(obj, np.ndarray):
+    elif type(obj).__name__ == 'ndarray':
         return obj.tolist()
+    elif hasattr(obj, 'item'):  # numpy scalar
+        return obj.item()
     else:
         return obj
 

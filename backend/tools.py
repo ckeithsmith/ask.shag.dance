@@ -89,6 +89,48 @@ TOOLS = [
             },
             "required": ["query_type", "filters"]
         }
+    },
+    {
+        "name": "analyze_csa_data",
+        "description": "Perform statistical analysis, aggregations, and trends on CSA database. Use for questions like 'how many', 'show trends', 'analyze', 'compare', 'what percentage'. Returns aggregated summaries, not individual records.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "analysis_type": {
+                    "type": "string",
+                    "enum": [
+                        "yearly_active_dancers",
+                        "judge_dancer_frequency",
+                        "judge_panel_combinations",
+                        "judge_dancer_outcomes",
+                        "retention_analysis",
+                        "career_progression_time",
+                        "partnership_success_rates",
+                        "division_migration_patterns",
+                        "win_concentration_analysis"
+                    ],
+                    "description": "Type of statistical analysis to perform"
+                },
+                "filters": {
+                    "type": "object",
+                    "properties": {
+                        "organization": {"type": "string"},
+                        "division": {"type": "string"},
+                        "start_year": {"type": "integer"},
+                        "end_year": {"type": "integer"},
+                        "judge_name": {"type": "string"},
+                        "dancer_name": {"type": "string"},
+                        "min_occurrences": {"type": "integer", "description": "Minimum threshold"}
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 20,
+                    "description": "Max results to return"
+                }
+            },
+            "required": ["analysis_type"]
+        }
     }
 ]
 
@@ -622,4 +664,250 @@ def execute_query_csa_data(query_type, filters, limit=10):
             "error": f"Query execution failed: {type(e).__name__}: {str(e)}",
             "query_type": query_type,
             "filters": filters
+        }
+
+def execute_analyze_csa_data(analysis_type, filters={}, limit=20):
+    """
+    Execute analytical queries returning aggregated/summarized data
+    Different from query_csa_data which returns individual records
+    """
+    try:
+        # Load CSV
+        current_dir = Path(__file__).parent
+        csv_path = current_dir.parent / "data" / "Shaggy_Shag_Archives_Final.csv"
+
+        if not csv_path.exists():
+            csv_path = Path("/app/data/Shaggy_Shag_Archives_Final.csv")
+
+        if not csv_path.exists():
+            return {"error": f"Database not found at {csv_path}"}
+
+        df = pd.read_csv(csv_path)
+
+        # Apply base filters
+        if filters.get('organization') and filters['organization'] != 'Both':
+            df = df[df['Organization'] == filters['organization']]
+
+        if filters.get('division'):
+            df = df[df['Division'] == filters['division']]
+
+        if filters.get('start_year') and filters.get('end_year'):
+            df = df[(df['Year'] >= filters['start_year']) & (df['Year'] <= filters['end_year'])]
+
+        # Route to analysis functions
+        if analysis_type == "yearly_active_dancers":
+            yearly = df.groupby('Year').agg({
+                'Male Name': pd.Series.nunique,
+                'Female Name': pd.Series.nunique
+            }).rename(columns={'Male Name': 'Male', 'Female Name': 'Female'})
+            yearly['Total'] = yearly['Male'] + yearly['Female']
+            yearly['Change'] = yearly['Total'].diff()
+
+            return {
+                "analysis": "Yearly active dancers",
+                "filters_applied": filters,
+                "yearly_data": yearly.reset_index().to_dict('records')
+            }
+
+        elif analysis_type == "judge_dancer_frequency":
+            judge_name = filters.get('judge_name')
+            if not judge_name:
+                return {"error": "judge_name required for this analysis"}
+
+            # Find contests where this judge participated
+            judge_mask = (
+                (df['Judge 1'] == judge_name) |
+                (df['Judge 2'] == judge_name) |
+                (df['Judge 3'] == judge_name) |
+                (df['Judge 4'] == judge_name) |
+                (df['Judge 5'] == judge_name)
+            )
+            judge_contests = df[judge_mask]
+
+            # Count male dancers
+            male_counts = judge_contests['Male Name'].value_counts().head(limit)
+
+            results = []
+            for dancer, count in male_counts.items():
+                dancer_with_judge = judge_contests[judge_contests['Male Name'] == dancer]
+                wins = len(dancer_with_judge[dancer_with_judge['Placement'] == 1])
+                win_rate = (wins / count * 100) if count > 0 else 0
+
+                results.append({
+                    "dancer": dancer,
+                    "times_judged_by": judge_name,
+                    "count": int(count),
+                    "wins_when_judged": int(wins),
+                    "win_rate_pct": round(win_rate, 1)
+                })
+
+            return {
+                "analysis": f"Dancers most frequently judged by {judge_name}",
+                "judge": judge_name,
+                "total_contests_judged": len(judge_contests),
+                "results": results
+            }
+
+        elif analysis_type == "judge_panel_combinations":
+            from itertools import combinations
+
+            min_occ = filters.get('min_occurrences', 5)
+            panels = []
+
+            for _, row in df.iterrows():
+                judges = []
+                for i in range(1, 6):
+                    judge = row.get(f'Judge {i}')
+                    if pd.notna(judge):
+                        judges.append(judge)
+
+                if len(judges) >= 2:
+                    for combo in combinations(sorted(judges), 2):
+                        panels.append(combo)
+
+            panel_counts = pd.Series(panels).value_counts()
+            panel_counts = panel_counts[panel_counts >= min_occ]
+
+            results = []
+            for panel, count in panel_counts.head(limit).items():
+                results.append({
+                    "judge_1": panel[0],
+                    "judge_2": panel[1],
+                    "times_together": int(count)
+                })
+
+            return {
+                "analysis": "Judge panel combinations",
+                "min_occurrences": min_occ,
+                "total_unique_combinations": len(panel_counts),
+                "results": results
+            }
+
+        elif analysis_type == "judge_dancer_outcomes":
+            dancer_name = filters.get('dancer_name')
+            if not dancer_name:
+                return {"error": "dancer_name required for this analysis"}
+
+            min_contests = filters.get('min_occurrences', 10)
+
+            # Get dancer's contests
+            dancer_df = df[(df['Male Name'] == dancer_name) | (df['Female Name'] == dancer_name)]
+
+            if len(dancer_df) == 0:
+                return {"error": f"No records found for {dancer_name}"}
+
+            # Calculate overall win rate
+            overall_wins = len(dancer_df[dancer_df['Placement'] == 1])
+            overall_rate = (overall_wins / len(dancer_df) * 100) if len(dancer_df) > 0 else 0
+
+            # Analyze each judge
+            judge_stats = {}
+            for judge_col in ['Judge 1', 'Judge 2', 'Judge 3', 'Judge 4', 'Judge 5']:
+                for judge in df[judge_col].dropna().unique():
+                    with_judge = dancer_df[
+                        (dancer_df['Judge 1'] == judge) |
+                        (dancer_df['Judge 2'] == judge) |
+                        (dancer_df['Judge 3'] == judge) |
+                        (dancer_df['Judge 4'] == judge) |
+                        (dancer_df['Judge 5'] == judge)
+                    ]
+
+                    if len(with_judge) >= min_contests:
+                        wins = len(with_judge[with_judge['Placement'] == 1])
+                        win_rate = (wins / len(with_judge) * 100)
+
+                        if judge not in judge_stats:
+                            judge_stats[judge] = {
+                                "judge": judge,
+                                "contests": int(len(with_judge)),
+                                "wins": int(wins),
+                                "win_rate_pct": round(win_rate, 1),
+                                "vs_overall": round(win_rate - overall_rate, 1)
+                            }
+
+            results = sorted(judge_stats.values(), key=lambda x: x['win_rate_pct'], reverse=True)
+
+            return {
+                "analysis": f"Judge-specific outcomes for {dancer_name}",
+                "dancer": dancer_name,
+                "overall_contests": len(dancer_df),
+                "overall_wins": int(overall_wins),
+                "overall_win_rate_pct": round(overall_rate, 1),
+                "min_contests_threshold": min_contests,
+                "judge_specific_outcomes": results[:limit]
+            }
+
+        elif analysis_type == "retention_analysis":
+            # Find Amateur dancers
+            amateur_dancers = set(
+                df[df['Division'] == 'Amateur']['Male Name'].dropna().unique().tolist() +
+                df[df['Division'] == 'Amateur']['Female Name'].dropna().unique().tolist()
+            )
+
+            # Find Pro dancers
+            pro_dancers = set(
+                df[df['Division'] == 'Pro']['Male Name'].dropna().unique().tolist() +
+                df[df['Division'] == 'Pro']['Female Name'].dropna().unique().tolist()
+            )
+
+            made_it_to_pro = amateur_dancers.intersection(pro_dancers)
+
+            return {
+                "analysis": "Amateur to Pro retention",
+                "total_amateur_dancers": len(amateur_dancers),
+                "reached_pro": len(made_it_to_pro),
+                "retention_rate_pct": round(len(made_it_to_pro) / len(amateur_dancers) * 100, 1) if amateur_dancers else 0,
+                "still_amateur_only": len(amateur_dancers) - len(made_it_to_pro)
+            }
+
+        elif analysis_type == "career_progression_time":
+            # Calculate average time from Amateur to Pro
+            amateur_dancers = set(
+                df[df['Division'] == 'Amateur']['Male Name'].dropna().unique().tolist() +
+                df[df['Division'] == 'Amateur']['Female Name'].dropna().unique().tolist()
+            )
+
+            pro_dancers = set(
+                df[df['Division'] == 'Pro']['Male Name'].dropna().unique().tolist() +
+                df[df['Division'] == 'Pro']['Female Name'].dropna().unique().tolist()
+            )
+
+            made_it = amateur_dancers.intersection(pro_dancers)
+            progression_times = []
+
+            for dancer in made_it:
+                amateur_years = df[
+                    ((df['Male Name'] == dancer) | (df['Female Name'] == dancer)) &
+                    (df['Division'] == 'Amateur')
+                ]['Year']
+
+                pro_years = df[
+                    ((df['Male Name'] == dancer) | (df['Female Name'] == dancer)) &
+                    (df['Division'] == 'Pro')
+                ]['Year']
+
+                if len(amateur_years) > 0 and len(pro_years) > 0:
+                    first_amateur = int(amateur_years.min())
+                    first_pro = int(pro_years.min())
+                    years_to_pro = first_pro - first_amateur
+
+                    if years_to_pro > 0:
+                        progression_times.append(years_to_pro)
+
+            return {
+                "analysis": "Time to progress from Amateur to Pro",
+                "dancers_analyzed": len(progression_times),
+                "avg_years_to_pro": round(sum(progression_times) / len(progression_times), 1) if progression_times else None,
+                "fastest_progression_years": int(min(progression_times)) if progression_times else None,
+                "slowest_progression_years": int(max(progression_times)) if progression_times else None
+            }
+
+        else:
+            return {"error": f"Analysis type '{analysis_type}' not yet implemented"}
+
+    except Exception as e:
+        import traceback
+        return {
+            "error": f"Analysis failed: {str(e)}",
+            "traceback": traceback.format_exc()
         }
