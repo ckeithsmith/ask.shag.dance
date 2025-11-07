@@ -6,7 +6,7 @@ Creates rich markdown tables, charts, and formatted responses
 class MarkdownFormatter:
 
     @staticmethod
-    def create_table(data: list, max_rows: int = 25) -> str:
+    def create_table(data: list, max_rows: int = 100) -> str:
         """
         Create markdown table from list of dicts
         Automatically limits to max_rows for data protection
@@ -38,7 +38,7 @@ class MarkdownFormatter:
 
     @staticmethod
     def create_ranked_list(data: list, name_key: str, value_key: str,
-                          value_label: str = "count", max_items: int = 25) -> str:
+                          value_label: str = "count", max_items: int = 100) -> str:
         """
         Create numbered ranking list with emphasis
         Example: 1. **Sam West** - 72 wins

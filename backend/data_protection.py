@@ -9,8 +9,8 @@ class DataProtectionError(Exception):
 
 class DataProtector:
     # Maximum records that can be returned in any response
-    MAX_RECORDS = 25
-    MAX_SAMPLE_RECORDS = 10
+    MAX_RECORDS = 100  # Allows comprehensive rankings (top dancer: 72 wins, top judge: 400+ placements)
+    MAX_SAMPLE_RECORDS = 20  # Increased for better context in individual profiles
 
     # Forbidden query patterns
     FORBIDDEN_PATTERNS = [
@@ -39,7 +39,7 @@ class DataProtector:
             if not any(word in question_lower for word in ['top', 'best', 'most', 'analysis', 'trend']):
                 return (False,
                     "For data protection, I can provide top lists, statistics, and analysis - "
-                    "but not complete unfiltered datasets. Try: 'top 25 Pro dancers' or 'analyze retention rates'.")
+                    "but not complete unfiltered datasets. Try: 'top 100 Pro dancers' or 'analyze retention rates'.")
 
         return (True, "")
 

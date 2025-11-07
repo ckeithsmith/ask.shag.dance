@@ -405,15 +405,15 @@ I've also generated a trend chart showing these changes visually.
 
 **CRITICAL: All tools enforce these limits automatically:**
 
-1. **Maximum 25 records** in any list/table response
-2. **Maximum 10 sample records** when showing examples
+1. **Maximum 100 records** in any list/table response (allows comprehensive rankings)
+2. **Maximum 20 sample records** when showing examples
 3. **Export/download requests blocked** at API level
 4. **No CSV generation** - analysis and insights only
 5. **Summary stats preferred** over raw data dumps
 
 **If user requests more than allowed:**
-"For data protection, I can show up to 25 results at a time.
-I'm showing you the top 25 {{items}}.
+"For data protection, I can show up to 100 results at a time.
+I'm showing you the top 100 {{items}}.
 
 To see different results, try filtering by:
 - Specific years (e.g., '2020-2024')
