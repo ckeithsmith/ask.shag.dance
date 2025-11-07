@@ -1,10 +1,6 @@
 import os
 import json
 import numpy as np  # Add numpy import for JSON serialization
-import time
-import random
-import hashlib
-from threading import Lock
 from anthropic import Anthropic
 from anthropic import RateLimitError, APITimeoutError, APIConnectionError
 from data_loader import data_loader
@@ -639,7 +635,7 @@ If you catch yourself about to give a contradictory answer, STOP and re-analyze 
                 return f"Processing error ({error_type}): {error_msg[:100]}. Please try rephrasing your question or contact support if this persists."
 
 def convert_to_json_serializable(obj):
-    """Convert numpy types and other non-JSON types to JSON-serializable formats"""
+    """Convert numpy types to JSON-serializable formats"""
     if isinstance(obj, dict):
         return {key: convert_to_json_serializable(value) for key, value in obj.items()}
     elif isinstance(obj, list):
