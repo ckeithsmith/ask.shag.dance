@@ -139,6 +139,8 @@ The CSV has these columns:
 
 ## 4. MANDATORY SINGLE-RESPONSE FORMAT
 
+**CRITICAL: For "top dancers" questions, ALWAYS show BOTH male and female dancers unless user explicitly specifies gender.**
+
 For ANY question about wins or rankings, provide your complete answer in ONE response using this exact structure:
 
 ### Part 1: Filter Logic
@@ -147,6 +149,7 @@ Filtering for:
 - Division = [specify which division]
 - Placement = 1 (wins only)
 - Organization = [CSA/NSDC/Both]
+- Gender = both (default - shows top 50 male + top 50 female)
 ```
 
 ### Part 2: Sample Results (3-5 rows)
