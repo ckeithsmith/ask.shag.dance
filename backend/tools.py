@@ -86,8 +86,8 @@ TOOLS = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Number of results to return (default 10, max 50)",
-                    "default": 10
+                    "description": "Number of results to return (default 100, max 100 for data protection)",
+                    "default": 100
                 }
             },
             "required": ["query_type", "filters"]
@@ -128,8 +128,8 @@ TOOLS = [
                 },
                 "limit": {
                     "type": "integer",
-                    "default": 20,
-                    "description": "Max results to return"
+                    "default": 100,
+                    "description": "Max results to return (max 100 for data protection)"
                 }
             },
             "required": ["analysis_type"]
@@ -137,7 +137,7 @@ TOOLS = [
     }
 ]
 
-def execute_query_csa_data(query_type, filters, limit=10):
+def execute_query_csa_data(query_type, filters, limit=100):
     """
     Execute queries against the CSA database
     
@@ -717,7 +717,7 @@ def execute_query_csa_data(query_type, filters, limit=10):
             "filters": filters
         }
 
-def execute_analyze_csa_data(analysis_type, filters={}, limit=20):
+def execute_analyze_csa_data(analysis_type, filters={}, limit=100):
     """
     Execute analytical queries returning aggregated/summarized data
     Different from query_csa_data which returns individual records
