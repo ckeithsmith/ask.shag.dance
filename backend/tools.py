@@ -60,8 +60,8 @@ TOOLS = [
                         },
                         "gender": {
                             "type": "string",
-                            "enum": ["male", "female"],
-                            "description": "Count wins by male or female dancers"
+                            "enum": ["male", "female", "both"],
+                            "description": "Count wins by male or female dancers (default: both)"
                         },
                         "contest": {
                             "type": "string",
@@ -229,13 +229,63 @@ def execute_query_csa_data(query_type, filters, limit=100):
         }
         
         if query_type == "count_wins" or query_type == "top_dancers":
-            gender = filters.get('gender', 'male')
-            name_column = 'Male Name' if gender == 'male' else 'Female Name'
+            gender = filters.get('gender', 'both')  # Default to both
 
             if len(filtered_df) == 0:
                 result["results"] = []
                 result["message"] = f"No records found matching the filters"
+            elif gender == 'both':
+                # Show both male and female dancers
+                male_counts = filtered_df['Male Name'].value_counts().head(limit // 2)
+                female_counts = filtered_df['Female Name'].value_counts().head(limit // 2)
+
+                male_list = [{"name": name, "count": int(count), "gender": "male"} for name, count in male_counts.items()]
+                female_list = [{"name": name, "count": int(count), "gender": "female"} for name, count in female_counts.items()]
+
+                # Apply data protection
+                male_protected = DataProtector.enforce_limit(male_list, limit // 2, "male dancers")
+                female_protected = DataProtector.enforce_limit(female_list, limit // 2, "female dancers")
+
+                # Create formatted lists for each gender
+                male_formatted = MarkdownFormatter.create_ranked_list(
+                    data=male_protected,
+                    name_key="name",
+                    value_key="count",
+                    value_label="wins",
+                    max_items=50
+                )
+                female_formatted = MarkdownFormatter.create_ranked_list(
+                    data=female_protected,
+                    name_key="name",
+                    value_key="count",
+                    value_label="wins",
+                    max_items=50
+                )
+
+                # Create charts for both
+                male_chart = chart_generator.create_bar_chart(
+                    data=male_protected[:20],
+                    label_key="name",
+                    value_key="count",
+                    title="Top Male Dancers by Wins"
+                )
+                female_chart = chart_generator.create_bar_chart(
+                    data=female_protected[:20],
+                    label_key="name",
+                    value_key="count",
+                    title="Top Female Dancers by Wins"
+                )
+
+                result["results"] = {"male": male_protected, "female": female_protected}
+                result["formatted_list_male"] = male_formatted
+                result["formatted_list_female"] = female_formatted
+                result["chart_base64_male"] = male_chart
+                result["chart_base64_female"] = female_chart
+                result["message"] = f"Top {len(male_protected)} male and {len(female_protected)} female dancers"
+                result["presentation_note"] = "Two formatted lists provided: formatted_list_male and formatted_list_female. Display both sections."
             else:
+                # Single gender query
+                name_column = 'Male Name' if gender == 'male' else 'Female Name'
                 counts = filtered_df[name_column].value_counts().head(limit)
 
                 # Raw results for backward compatibility

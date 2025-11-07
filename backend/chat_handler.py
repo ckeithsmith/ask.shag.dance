@@ -382,24 +382,32 @@ Use summary_stats to provide quick insights:
 
 **CRITICAL FORMATTING RULES:**
 
-1. **Always use the formatted versions** (formatted_table, formatted_list) instead of creating your own from raw_data
-2. **Insert tables/lists directly** - they're already properly formatted
-3. **Don't recreate markdown tables** - use what the tool provides
-4. **Charts are for frontend** - acknowledge their presence but don't try to display base64
-5. **Add insights and context** around the formatted data
-6. **Keep responses focused** - formatted data + brief analysis
+1. **ALWAYS use formatted_list or formatted_table fields** - NEVER create your own lists from raw results
+2. **Copy formatted_list EXACTLY** - Do not reformat, renumber, or modify it
+3. **DO NOT CREATE NUMBERED LISTS** from results array - use formatted_list field
+4. **Check for formatted_list field first** - If it exists, use it instead of results
+5. **Charts are for frontend** - acknowledge their presence but don't display base64
+6. **Example: If tool returns formatted_list, your response must include it verbatim**
 
-**Example Response Structure:**
-Here's the yearly trend of active dancers:
+**WRONG - Creating your own list:**
+```
+1. Joey Sogluizzo - 47 wins
+2. Jeff Hargett - 38 wins
+```
 
-{{formatted_table}}
+**CORRECT - Using formatted_list field:**
+```
+{{Use the exact formatted_list from tool response}}
+```
+
+**Example Response Structure When formatted_list Exists:**
+Here are the top dancers:
+
+[INSERT FORMATTED_LIST FIELD HERE - DO NOT CREATE YOUR OWN]
 
 **Key Insights:**
-- Peak in {{peak_year}} with {{count}} dancers
-- Recent trend shows {{trend description}}
-- Notable changes: {{specific observations}}
-
-I've also generated a trend chart showing these changes visually.
+- Joey Sogluizzo leads with 47 wins
+- Strong competition in top 10
 
 ## 🔒 DATA PROTECTION ENFORCEMENT
 
