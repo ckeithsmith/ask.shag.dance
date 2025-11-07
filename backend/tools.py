@@ -467,11 +467,29 @@ def execute_query_csa_data(query_type, filters, limit=10):
             ]
             division_table = MarkdownFormatter.create_table(div_data, max_rows=10)
 
-            # Sample recent contests (PROTECTED - max 20)
-            recent_contests = dancer_df.nlargest(min(20, limit), 'Year')[
+            # Determine if user applied specific filters (beyond just name)
+            has_filters = any([
+                filters.get('start_year'),
+                filters.get('end_year'),
+                filters.get('division'),
+                filters.get('organization') and filters.get('organization') != 'Both'
+            ])
+
+            # If filtered, show up to 100 contests; otherwise just 20 recent samples
+            max_contests = min(100, limit) if has_filters else 20
+
+            # Get contests sorted by year (most recent first)
+            contest_list = dancer_df.nlargest(max_contests, 'Year')[
                 ['Contest', 'Year', 'Division', 'Placement', 'Organization']
             ].to_dict('records')
-            recent_limited = DataProtector.sanitize_sample_data(recent_contests, max_samples=20)
+
+            # Apply protection limit
+            if has_filters:
+                contest_list = DataProtector.enforce_limit(contest_list, max_contests, "contests")
+                protection_note = f"Showing {len(contest_list)} contests from filtered results (max {DataProtector.MAX_RECORDS})"
+            else:
+                contest_list = DataProtector.sanitize_sample_data(contest_list, max_samples=20)
+                protection_note = "Showing 20 most recent contests as samples (use filters for full list)"
 
             result["dancer_name"] = search_name
             result["summary"] = {
@@ -484,8 +502,8 @@ def execute_query_csa_data(query_type, filters, limit=10):
             }
             result["formatted_profile"] = profile_card
             result["division_breakdown_table"] = division_table
-            result["recent_contests_sample"] = recent_limited
-            result["data_protection_note"] = "Showing max 20 recent contests for context"
+            result["recent_contests_sample"] = contest_list
+            result["data_protection_note"] = protection_note
             result["message"] = f"Complete profile for {search_name}: {total_wins} wins in {total_contests} contests"
             
         # ========== NEW HIGH-VALUE QUERY TYPES ==========
