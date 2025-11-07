@@ -43,9 +43,9 @@ class ChatHandler:
         self.api_key = os.getenv('ANTHROPIC_API_KEY')
         if self.api_key:
             try:
-                # Use default initialization - let Anthropic handle HTTP client
-                self.client = Anthropic(api_key=self.api_key)
-                print("✅ Claude API client initialized with default configuration")
+                # CRITICAL: Disable SDK retry to use our fast-fail logic (max_retries=0)
+                self.client = Anthropic(api_key=self.api_key, max_retries=0)
+                print("✅ Claude API client initialized with fast-fail retry (max_retries=0)")
             except Exception as e:
                 print(f"⚠️ Failed to initialize Claude API client: {e}")
                 self.client = None
