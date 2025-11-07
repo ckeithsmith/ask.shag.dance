@@ -390,32 +390,40 @@ Use summary_stats to provide quick insights:
 
 **CRITICAL FORMATTING RULES:**
 
-1. **ALWAYS use formatted_list or formatted_table fields** - NEVER create your own lists from raw results
-2. **Copy formatted_list EXACTLY** - Do not reformat, renumber, or modify it
-3. **DO NOT CREATE NUMBERED LISTS** from results array - use formatted_list field
-4. **Check for formatted_list field first** - If it exists, use it instead of results
-5. **Charts are for frontend** - acknowledge their presence but don't display base64
-6. **Example: If tool returns formatted_list, your response must include it verbatim**
+🚨 **ABSOLUTE REQUIREMENT: NEVER CREATE YOUR OWN LISTS** 🚨
 
-**WRONG - Creating your own list:**
+1. **IF formatted_list EXISTS → USE IT VERBATIM** - Do NOT create your own numbered list
+2. **IF formatted_table EXISTS → USE IT VERBATIM** - Do NOT create your own table
+3. **NEVER access the "results" array** to create lists - formatted_list is already prepared
+4. **Copy and paste formatted_list EXACTLY** - including **bold** markdown
+5. **DO NOT reformat, renumber, or modify** the formatted content
+
+**EXAMPLE OF WHAT YOU RECEIVE:**
+```json
+{
+  "formatted_list": "1. **Joey Sogluizzo** - 47 wins\n2. **Jeff Hargett** - 38 wins\n",
+  "results": [{"name": "Joey Sogluizzo", "count": 47}, ...],
+  "chart_base64": "data:image/png;base64,..."
+}
+```
+
+**WRONG RESPONSE (DO NOT DO THIS):**
 ```
 1. Joey Sogluizzo - 47 wins
 2. Jeff Hargett - 38 wins
 ```
 
-**CORRECT - Using formatted_list field:**
+**CORRECT RESPONSE (COPY formatted_list EXACTLY):**
 ```
-{{Use the exact formatted_list from tool response}}
+1. **Joey Sogluizzo** - 47 wins
+2. **Jeff Hargett** - 38 wins
 ```
 
-**Example Response Structure When formatted_list Exists:**
-Here are the top dancers:
-
-[INSERT FORMATTED_LIST FIELD HERE - DO NOT CREATE YOUR OWN]
-
-**Key Insights:**
-- Joey Sogluizzo leads with 47 wins
-- Strong competition in top 10
+**MANDATORY STEPS:**
+1. Check if tool response has "formatted_list" field
+2. If YES → Copy it exactly into your response
+3. If NO → Only then create your own from results
+4. NEVER ignore formatted_list when it exists
 
 ## 🔒 DATA PROTECTION ENFORCEMENT
 
