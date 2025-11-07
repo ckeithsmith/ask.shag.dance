@@ -6,6 +6,9 @@ Function calling tools for Claude to access real competition data
 import pandas as pd
 import os
 from pathlib import Path
+from response_formatter import MarkdownFormatter
+from chart_generator import chart_generator
+from data_protection import DataProtector, DataProtectionError
 
 # Tool definition for Claude function calling
 TOOLS = [
@@ -437,22 +440,52 @@ def execute_query_csa_data(query_type, filters, limit=10):
             else:
                 career_span = "No data"
             
+            # Calculate win rate
+            win_rate = round((total_wins/total_contests)*100, 1) if total_contests > 0 else 0
+
+            # Create formatted profile card
+            profile_card = f"""### {search_name}
+
+**Career Overview:**
+- Total Contests: {total_contests}
+- Total Wins: {total_wins}
+- Win Rate: {win_rate}%
+- Active: {career_span}
+
+**Organizations:** {', '.join(dancer_df['Organization'].unique().tolist())}
+"""
+
+            # Create division breakdown table
+            div_data = [
+                {
+                    "Division": div,
+                    "Contests": stats["contests"],
+                    "Wins": stats["wins"],
+                    "Win Rate": f"{(stats['wins']/stats['contests']*100):.1f}%" if stats['contests'] > 0 else "0%"
+                }
+                for div, stats in division_summary.items()
+            ]
+            division_table = MarkdownFormatter.create_table(div_data, max_rows=10)
+
+            # Sample recent contests (PROTECTED - max 10)
+            recent_contests = dancer_df.nlargest(min(10, limit), 'Year')[
+                ['Contest', 'Year', 'Division', 'Placement', 'Organization']
+            ].to_dict('records')
+            recent_limited = DataProtector.sanitize_sample_data(recent_contests, max_samples=10)
+
             result["dancer_name"] = search_name
             result["summary"] = {
                 "total_contests": total_contests,
-                "total_wins": total_wins, 
-                "win_rate": round((total_wins/total_contests)*100, 1) if total_contests > 0 else 0,
+                "total_wins": total_wins,
+                "win_rate": win_rate,
                 "career_span": career_span,
                 "organizations": dancer_df['Organization'].unique().tolist(),
                 "division_breakdown": division_summary
             }
-            
-            # Sample recent contests for context
-            recent_contests = dancer_df.nlargest(min(5, limit), 'Year')[
-                ['Contest', 'Year', 'Division', 'Placement', 'Organization']
-            ].to_dict('records')
-            
-            result["recent_contests"] = recent_contests
+            result["formatted_profile"] = profile_card
+            result["division_breakdown_table"] = division_table
+            result["recent_contests_sample"] = recent_limited
+            result["data_protection_note"] = "Showing max 10 recent contests for privacy"
             result["message"] = f"Complete profile for {search_name}: {total_wins} wins in {total_contests} contests"
             
         # ========== NEW HIGH-VALUE QUERY TYPES ==========
@@ -701,12 +734,41 @@ def execute_analyze_csa_data(analysis_type, filters={}, limit=20):
                 'Female Name': pd.Series.nunique
             }).rename(columns={'Male Name': 'Male', 'Female Name': 'Female'})
             yearly['Total'] = yearly['Male'] + yearly['Female']
-            yearly['Change'] = yearly['Total'].diff()
+            yearly['Change'] = yearly['Total'].diff().fillna(0)
+
+            yearly_list = yearly.reset_index().to_dict('records')
+
+            # Create rich markdown table
+            table_md = MarkdownFormatter.create_table(yearly_list, max_rows=25)
+
+            # Create trend chart
+            chart_url = chart_generator.create_trend_chart_with_change(
+                data=yearly_list,
+                x_key='Year',
+                y_key='Total',
+                change_key='Change',
+                title='Active Dancers by Year'
+            )
+
+            # Calculate summary stats
+            total_years = len(yearly_list)
+            avg_dancers = int(yearly['Total'].mean())
+            peak_year = int(yearly['Total'].idxmax())
+            peak_count = int(yearly['Total'].max())
 
             return {
                 "analysis": "Yearly active dancers",
                 "filters_applied": filters,
-                "yearly_data": yearly.reset_index().to_dict('records')
+                "formatted_table": table_md,
+                "chart_base64": chart_url,
+                "summary_stats": {
+                    "total_years_analyzed": total_years,
+                    "average_dancers_per_year": avg_dancers,
+                    "peak_year": peak_year,
+                    "peak_dancer_count": peak_count
+                },
+                "raw_data": yearly_list,
+                "presentation_note": "Use formatted_table for display. Chart included as base64 data URL."
             }
 
         elif analysis_type == "judge_dancer_frequency":
@@ -741,11 +803,45 @@ def execute_analyze_csa_data(analysis_type, filters={}, limit=20):
                     "win_rate_pct": round(win_rate, 1)
                 })
 
+            # ENFORCE DATA PROTECTION LIMIT
+            results = DataProtector.enforce_limit(results, limit, "dancers")
+
+            # Create rich ranked list
+            ranked_list = MarkdownFormatter.create_ranked_list(
+                data=results,
+                name_key='dancer',
+                value_key='count',
+                value_label='times judged',
+                max_items=limit
+            )
+
+            # Create bar chart
+            chart_url = chart_generator.create_bar_chart(
+                data=results,
+                label_key='dancer',
+                value_key='count',
+                title=f'Dancers Most Frequently Judged by {judge_name}',
+                max_bars=min(20, limit)
+            )
+
+            # Summary stats
+            top_dancer = results[0] if results else None
+            avg_times = sum(r['count'] for r in results) / len(results) if results else 0
+
             return {
                 "analysis": f"Dancers most frequently judged by {judge_name}",
                 "judge": judge_name,
                 "total_contests_judged": len(judge_contests),
-                "results": results
+                "formatted_list": ranked_list,
+                "chart_base64": chart_url,
+                "summary": {
+                    "most_frequent_dancer": top_dancer['dancer'] if top_dancer else None,
+                    "most_frequent_count": top_dancer['count'] if top_dancer else 0,
+                    "average_times_per_dancer": round(avg_times, 1),
+                    "unique_dancers_judged": len(results)
+                },
+                "detailed_results": results,
+                "data_protection_note": f"Showing top {len(results)} dancers (max {DataProtector.MAX_RECORDS})"
             }
 
         elif analysis_type == "judge_panel_combinations":

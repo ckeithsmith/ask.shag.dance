@@ -9,6 +9,7 @@ from data_loader import data_loader
 from chat_handler import chat_handler
 from security import rate_limit, validate_input, filter_response
 from database import db_manager
+from data_protection import DataProtector, DataProtectionError
 
 # Load environment variables
 load_dotenv()
@@ -69,7 +70,16 @@ def ask_question():
         is_valid, validation_message = validate_input(user_question)
         if not is_valid:
             return jsonify({"error": validation_message}), 400
-        
+
+        # Data protection validation
+        is_allowed, protection_message = DataProtector.validate_query(user_question)
+        if not is_allowed:
+            logging.warning(f"⚠️ Data extraction attempt blocked: {user_question[:100]}")
+            return jsonify({
+                "error": protection_message,
+                "suggestion": "Try asking for: 'top 10 Pro dancers' or 'analyze trends by year'"
+            }), 403
+
         # Find or identify user
         ip_address = request.remote_addr
         user_info = None
