@@ -90,10 +90,7 @@ function App() {
     // Remove console.log to prevent browser console spam
   }, []);
 
-  const handleFeedbackSubmitted = useCallback((queryId, comment) => {
-    // Remove console.log to prevent browser console spam in production
-    // Feedback successfully submitted and recorded in backend
-  }, []);
+
 
   return (
     <div className="App flex flex-col min-h-screen">
