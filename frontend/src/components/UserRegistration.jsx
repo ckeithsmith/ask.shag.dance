@@ -25,7 +25,8 @@ const UserRegistration = ({ onUserRegistered }) => {
       // Show registration popup for new users
       setShowModal(true);
     }
-  }, [onUserRegistered]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only once on mount
 
   const handleSubmit = async (e) => {
     e.preventDefault();
