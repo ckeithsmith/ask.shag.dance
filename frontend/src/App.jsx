@@ -87,12 +87,10 @@ function App() {
 
   const handleUserRegistered = useCallback((userData) => {
     setUserInfo(userData);
-    console.log('User registered:', userData);
+    // Remove console.log to prevent browser console spam
   }, []);
 
-  const handleFeedbackSubmitted = useCallback((queryId, comment) => {
-    console.log('Feedback submitted for query:', queryId, 'Comment:', comment);
-  }, []);
+
 
   return (
     <div className="App flex flex-col min-h-screen">

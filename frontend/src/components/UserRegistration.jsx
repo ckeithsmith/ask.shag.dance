@@ -8,22 +8,29 @@ const UserRegistration = ({ onUserRegistered }) => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   // Check if user is already registered
   useEffect(() => {
+    // Guard against multiple calls to prevent auth loop
+    if (hasInitialized) return;
+    
     const storedUser = localStorage.getItem('csaUserInfo');
     if (storedUser) {
       try {
         const userInfo = JSON.parse(storedUser);
         onUserRegistered(userInfo);
+        setHasInitialized(true);
       } catch (e) {
         // If stored data is corrupted, show registration
         localStorage.removeItem('csaUserInfo');
         setShowModal(true);
+        setHasInitialized(true);
       }
     } else {
       // Show registration popup for new users
       setShowModal(true);
+      setHasInitialized(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only once on mount
