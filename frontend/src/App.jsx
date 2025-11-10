@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
@@ -85,14 +85,14 @@ function App() {
     handleSendMessage(question);
   };
 
-  const handleUserRegistered = (userData) => {
+  const handleUserRegistered = useCallback((userData) => {
     setUserInfo(userData);
     console.log('User registered:', userData);
-  };
+  }, []);
 
-  const handleFeedbackSubmitted = (queryId, comment) => {
+  const handleFeedbackSubmitted = useCallback((queryId, comment) => {
     console.log('Feedback submitted for query:', queryId, 'Comment:', comment);
-  };
+  }, []);
 
   return (
     <div className="App flex flex-col min-h-screen">
