@@ -12,6 +12,8 @@ function App() {
   const [suggestedQuestions, setSuggestedQuestions] = useState([]);
   const [error, setError] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
+  const [showRegistration, setShowRegistration] = useState(false);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const messagesEndRef = useRef(null);
 
@@ -22,6 +24,28 @@ function App() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Initialize authentication on startup - ONCE ONLY
+  useEffect(() => {
+    if (authInitialized) return; // Prevent multiple initializations
+    
+    const storedUser = localStorage.getItem('csaUserInfo');
+    if (storedUser) {
+      try {
+        const userInfo = JSON.parse(storedUser);
+        setUserInfo(userInfo);
+        setShowRegistration(false);
+      } catch (e) {
+        // If stored data is corrupted, show registration
+        localStorage.removeItem('csaUserInfo');
+        setShowRegistration(true);
+      }
+    } else {
+      // Show registration popup for new users
+      setShowRegistration(true);
+    }
+    setAuthInitialized(true);
+  }, [authInitialized]);
 
   useEffect(() => {
     // Load suggested questions on startup
@@ -87,15 +111,18 @@ function App() {
 
   const handleUserRegistered = useCallback((userData) => {
     setUserInfo(userData);
-    // Remove console.log to prevent browser console spam
+    setShowRegistration(false);
+    // Authentication completed successfully
   }, []);
 
 
 
   return (
     <div className="App flex flex-col min-h-screen">
-      {/* User Registration Modal */}
-      <UserRegistration onUserRegistered={handleUserRegistered} />
+      {/* User Registration Modal - Only render when needed to prevent loops */}
+      {showRegistration && authInitialized && (
+        <UserRegistration onUserRegistered={handleUserRegistered} />
+      )}
       
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-lg">
