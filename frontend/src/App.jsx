@@ -6,6 +6,9 @@ import LoadingSpinner from './components/LoadingSpinner';
 import UserRegistration from './components/UserRegistration';
 import * as api from './services/api';
 
+// Global flag to prevent multiple authentication attempts across all instances
+let globalAuthInProgress = false;
+
 function App() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -14,6 +17,7 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [showRegistration, setShowRegistration] = useState(false);
   const [authInitialized, setAuthInitialized] = useState(false);
+  const [authInProgress, setAuthInProgress] = useState(false);
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const messagesEndRef = useRef(null);
 
@@ -25,9 +29,14 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize authentication on startup - ONCE ONLY
+  // Initialize authentication on startup - ONCE ONLY with multiple safeguards
   useEffect(() => {
-    if (authInitialized) return; // Prevent multiple initializations
+    if (authInitialized || authInProgress || globalAuthInProgress) return; // Prevent multiple initializations
+    
+    globalAuthInProgress = true;
+    setAuthInProgress(true);
+    
+    console.log('🔐 Initializing authentication - should happen only once');
     
     const storedUser = localStorage.getItem('csaUserInfo');
     if (storedUser) {
@@ -35,17 +44,23 @@ function App() {
         const userInfo = JSON.parse(storedUser);
         setUserInfo(userInfo);
         setShowRegistration(false);
+        console.log('✅ Loaded existing user from localStorage');
       } catch (e) {
         // If stored data is corrupted, show registration
         localStorage.removeItem('csaUserInfo');
         setShowRegistration(true);
+        console.log('⚠️ Corrupted user data removed, showing registration');
       }
     } else {
       // Show registration popup for new users
       setShowRegistration(true);
+      console.log('👤 New user detected, showing registration');
     }
     setAuthInitialized(true);
-  }, [authInitialized]);
+    setAuthInProgress(false);
+    globalAuthInProgress = false;
+    console.log('🔐 Authentication initialization complete');
+  }, [authInitialized, authInProgress]);
 
   useEffect(() => {
     // Load suggested questions on startup

@@ -5,7 +5,8 @@ import './App.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
+  // Temporarily disable StrictMode to prevent double-invocation of effects causing auth loops
+  // <React.StrictMode>
     <App />
-  </React.StrictMode>
+  // </React.StrictMode>
 );
