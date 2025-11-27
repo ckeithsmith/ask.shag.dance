@@ -27,8 +27,6 @@ function App() {
 
   // Initialize authentication on startup - ONCE ONLY
   useEffect(() => {
-    if (authInitialized) return; // Prevent multiple initializations
-    
     const storedUser = localStorage.getItem('csaUserInfo');
     if (storedUser) {
       try {
@@ -45,7 +43,7 @@ function App() {
       setShowRegistration(true);
     }
     setAuthInitialized(true);
-  }, [authInitialized]);
+  }, []); // Empty dependency array - run only once on mount
 
   useEffect(() => {
     // Load suggested questions on startup
