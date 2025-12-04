@@ -25,33 +25,25 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize authentication on startup - ONCE ONLY with multiple safeguards
+  // Load user info on startup - ONCE ONLY
   useEffect(() => {
-    // Prevent multiple initialization attempts
-    if (authInitialized) {
-      return;
-    }
-
     const storedUser = localStorage.getItem('csaUserInfo');
     if (storedUser) {
       try {
         const userInfo = JSON.parse(storedUser);
         setUserInfo(userInfo);
         setShowRegistration(false);
-        console.log('✅ Auth: Loaded existing user from localStorage');
       } catch (e) {
         // If stored data is corrupted, show registration
         localStorage.removeItem('csaUserInfo');
         setShowRegistration(true);
-        console.log('⚠️ Auth: Corrupted user data removed, showing registration');
       }
     } else {
       // Show registration popup for new users
       setShowRegistration(true);
-      console.log('👤 Auth: New user detected, showing registration');
     }
     setAuthInitialized(true);
-  }, [authInitialized]); // Include authInitialized to prevent multiple runs
+  }, []); // Empty dependency array - run only once on mount
 
   useEffect(() => {
     // Load suggested questions on startup
