@@ -10,7 +10,7 @@ from chat_handler import chat_handler
 from security import rate_limit, validate_input, filter_response
 from database import db_manager
 from data_protection import DataProtector, DataProtectionError
-from rate_limiter import DailyRateLimiter
+from simple_limiter import SimpleDailyLimiter
 
 # Load environment variables
 load_dotenv()
@@ -21,9 +21,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app = Flask(__name__, static_folder=None)  # Disable Flask's default static handling
 CORS(app)
 
-# Initialize rate limiter
+# Initialize simple daily limiter - 50 messages total per day
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'csa_archive.db')
-rate_limiter = DailyRateLimiter(DATABASE_PATH)
+simple_limiter = SimpleDailyLimiter(DATABASE_PATH, daily_limit=50)
 
 # Initialize data on startup
 def initialize_data():
@@ -85,33 +85,25 @@ def ask_question():
                 "suggestion": "Try asking for: 'top 100 Pro dancers' or 'analyze trends by year'"
             }), 403
 
-        # Find or identify user
+        # Get client info for logging
         ip_address = request.remote_addr
-        user_info = None
-        user_id = None
         
-        if user_contact and user_contact != 'Anonymous':
-            user_info = db_manager.find_user(ip_address, user_contact)
-            if user_info:
-                user_id = user_info[0]
+        # 🚨 SIMPLE DAILY LIMIT - 50 messages total per day
+        limit_check = simple_limiter.can_send_message()
         
-        # 🚨 DAILY RATE LIMITING - Cost Control Protection
-        rate_check = rate_limiter.can_send_message(user_id, user_contact, ip_address)
-        
-        if not rate_check['allowed']:
-            logging.warning(f"⛔ Rate limit hit: {user_contact} ({ip_address}) - {rate_check['reason']}")
+        if not limit_check['allowed']:
+            logging.warning(f"⛔ Daily limit hit: {limit_check['message']}")
             return jsonify({
                 "error": "Daily message limit reached",
-                "message": rate_check['message'],
-                "reason": rate_check['reason'],
+                "message": limit_check['message'],
                 "retry_after": "Tomorrow (limits reset at midnight)",
-                "user_status": rate_check.get('user_status'),
-                "global_status": rate_check.get('global_status')
+                "current_count": limit_check['current_count'],
+                "daily_limit": limit_check['daily_limit']
             }), 429
         
         # Log the query attempt
-        logging.info(f"❓ Query from {ip_address} ({user_contact}): {user_question[:100]}")
-        logging.info(f"📊 Usage: {rate_check['message']}")
+        logging.info(f"❓ Query from {ip_address}: {user_question[:100]}")
+        logging.info(f"📊 Usage: {limit_check['message']}")
         
         # Process with Claude
         result = chat_handler.process_query(user_question)
@@ -127,9 +119,9 @@ def ask_question():
         # Calculate response time
         response_time_ms = int((time.time() - start_time) * 1000)
         
-        # Log query to database
+        # Log query to database (no user tracking)
         query_id = db_manager.log_query(
-            user_id=user_id,
+            user_id=None,
             ip_address=ip_address,
             question=user_question,
             response=filtered_response,
@@ -138,8 +130,8 @@ def ask_question():
             session_id=session_id
         )
         
-        # 📊 Record successful message for rate limiting
-        rate_limiter.record_message_sent(user_id, user_contact, ip_address)
+        # 📊 Record successful message for simple daily limit
+        simple_limiter.record_message()
         
         return jsonify({
             "answer": filtered_response,
@@ -165,50 +157,13 @@ def get_suggested_questions():
     ]
     return jsonify({"suggestions": suggestions})
 
-@app.route('/api/register-user', methods=['POST'])
-def register_user():
-    """Register a new user or update existing user info"""
-    try:
-        data = request.get_json()
-        
-        # Extract user info
-        name = data.get('name', '').strip()
-        email = data.get('email', '').strip() or None
-        device_fingerprint = data.get('device_fingerprint')
-        
-        if not name:
-            return jsonify({"error": "Name is required"}), 400
-        
-        # Get client info
-        ip_address = request.remote_addr
-        user_agent = request.headers.get('User-Agent')
-        
-        # Register/update user in database
-        user_id = db_manager.register_user(
-            name=name,
-            email=email,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            device_fingerprint=device_fingerprint
-        )
-        
-        logging.info(f"🆔 User registered: {name} ({email}) from {ip_address}")
-        
-        return jsonify({
-            "status": "registered",
-            "user_id": user_id,
-            "message": "User registered successfully"
-        })
-        
-    except Exception as e:
-        logging.error(f"Registration error: {e}")
-        return jsonify({"error": f"Registration failed: {str(e)}"}), 500
+
 
 @app.route('/api/usage-stats', methods=['GET'])
 def get_usage_stats():
     """Get daily usage statistics for cost monitoring"""
     try:
-        stats = rate_limiter.get_daily_usage_stats()
+        stats = simple_limiter.get_stats()
         
         logging.info(f"📈 Usage stats requested from {request.remote_addr}")
         
@@ -216,16 +171,9 @@ def get_usage_stats():
             "status": "success",
             "stats": stats,
             "cost_estimate": {
-                "claude_4_sonnet_input_tokens_1k": 0.003,  # $3 per 1M input tokens
-                "claude_4_sonnet_output_tokens_1k": 0.015,  # $15 per 1M output tokens
-                "estimated_avg_cost_per_message": 0.05,     # rough estimate
-                "daily_budget_estimate": stats['today']['total_messages'] * 0.05,
-                "monthly_budget_estimate": stats['today']['total_messages'] * 0.05 * 30
-            },
-            "limits": {
-                "user_daily_limit": rate_limiter.DEFAULT_DAILY_USER_LIMIT,
-                "global_daily_limit": rate_limiter.GLOBAL_DAILY_LIMIT,
-                "current_global_usage": stats['today']['total_messages']
+                "claude_model": "claude-sonnet-4-5-20250929",
+                "estimated_cost_per_message": 0.05,  # rough estimate $0.05 per message
+                "daily_cost_estimate": stats['today']['messages_used'] * 0.05
             }
         })
         

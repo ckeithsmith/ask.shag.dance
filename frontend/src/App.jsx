@@ -1,19 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import LoadingSpinner from './components/LoadingSpinner';
-import UserRegistration from './components/UserRegistration';
 import * as api from './services/api';
 
 function App() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState([]);
-  const [error, setError] = useState(null);
-  const [userInfo, setUserInfo] = useState(null);
-  const [showRegistration, setShowRegistration] = useState(false);
-  const [authInitialized, setAuthInitialized] = useState(false);
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const messagesEndRef = useRef(null);
 
@@ -24,26 +19,6 @@ function App() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Load user info on startup - ONCE ONLY
-  useEffect(() => {
-    const storedUser = localStorage.getItem('csaUserInfo');
-    if (storedUser) {
-      try {
-        const userInfo = JSON.parse(storedUser);
-        setUserInfo(userInfo);
-        setShowRegistration(false);
-      } catch (e) {
-        // If stored data is corrupted, show registration
-        localStorage.removeItem('csaUserInfo');
-        setShowRegistration(true);
-      }
-    } else {
-      // Show registration popup for new users
-      setShowRegistration(true);
-    }
-    setAuthInitialized(true);
-  }, []); // Empty dependency array - run only once on mount
 
   useEffect(() => {
     // Load suggested questions on startup
@@ -70,10 +45,9 @@ function App() {
 
     setMessages(prev => [...prev, newUserMessage]);
     setIsLoading(true);
-    setError(null);
 
     try {
-      const response = await api.askQuestion(userMessage, userInfo?.name || 'Anonymous', sessionId);
+      const response = await api.askQuestion(userMessage, 'Anonymous', sessionId);
       
       const botMessage = {
         id: Date.now() + 1,
@@ -97,7 +71,6 @@ function App() {
       };
 
       setMessages(prev => [...prev, errorMessage]);
-      setError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -107,21 +80,10 @@ function App() {
     handleSendMessage(question);
   };
 
-  const handleUserRegistered = useCallback((userData) => {
-    setUserInfo(userData);
-    setShowRegistration(false);
-    // Authentication completed successfully
-  }, []);
-
 
 
   return (
     <div className="App flex flex-col min-h-screen">
-      {/* User Registration Modal - Only render when needed to prevent loops */}
-      {showRegistration && authInitialized && (
-        <UserRegistration onUserRegistered={handleUserRegistered} />
-      )}
-      
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-lg">
         <div className="max-w-4xl mx-auto">
