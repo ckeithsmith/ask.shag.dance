@@ -66,8 +66,12 @@ const UserRegistration = ({ onUserRegistered }) => {
       
       localStorage.setItem('csaUserInfo', JSON.stringify(userInfo));
       
-      // Notify parent component
-      onUserRegistered(userInfo);
+      // Notify parent component with defensive logging
+      if (typeof onUserRegistered === 'function') {
+        onUserRegistered(userInfo);
+      } else {
+        console.error('onUserRegistered is not a function:', typeof onUserRegistered);
+      }
       
       // Close modal
       setShowModal(false);

@@ -6,9 +6,6 @@ import LoadingSpinner from './components/LoadingSpinner';
 import UserRegistration from './components/UserRegistration';
 import * as api from './services/api';
 
-// Global flag to prevent multiple authentication attempts across all instances
-let globalAuthInProgress = false;
-
 function App() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -17,7 +14,6 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [showRegistration, setShowRegistration] = useState(false);
   const [authInitialized, setAuthInitialized] = useState(false);
-  const [authInProgress, setAuthInProgress] = useState(false);
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const messagesEndRef = useRef(null);
 
@@ -31,26 +27,31 @@ function App() {
 
   // Initialize authentication on startup - ONCE ONLY with multiple safeguards
   useEffect(() => {
+    // Prevent multiple initialization attempts
+    if (authInitialized) {
+      return;
+    }
+
     const storedUser = localStorage.getItem('csaUserInfo');
     if (storedUser) {
       try {
         const userInfo = JSON.parse(storedUser);
         setUserInfo(userInfo);
         setShowRegistration(false);
-        console.log('✅ Loaded existing user from localStorage');
+        console.log('✅ Auth: Loaded existing user from localStorage');
       } catch (e) {
         // If stored data is corrupted, show registration
         localStorage.removeItem('csaUserInfo');
         setShowRegistration(true);
-        console.log('⚠️ Corrupted user data removed, showing registration');
+        console.log('⚠️ Auth: Corrupted user data removed, showing registration');
       }
     } else {
       // Show registration popup for new users
       setShowRegistration(true);
-      console.log('👤 New user detected, showing registration');
+      console.log('👤 Auth: New user detected, showing registration');
     }
     setAuthInitialized(true);
-  }, []); // Empty dependency array - run only once on mount
+  }, [authInitialized]); // Include authInitialized to prevent multiple runs
 
   useEffect(() => {
     // Load suggested questions on startup
