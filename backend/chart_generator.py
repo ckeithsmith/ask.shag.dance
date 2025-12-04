@@ -3,19 +3,29 @@ Chart Generation Service
 Creates chart URLs from analysis data
 """
 
-import matplotlib
-matplotlib.use('Agg')  # Non-GUI backend
-import matplotlib.pyplot as plt
-import seaborn as sns
+try:
+    import matplotlib
+    matplotlib.use('Agg')  # Non-GUI backend
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    CHARTS_AVAILABLE = True
+except ImportError:
+    # Graceful fallback when matplotlib/seaborn not available
+    plt = None
+    sns = None
+    CHARTS_AVAILABLE = False
+    print("⚠️ Charts unavailable: matplotlib/seaborn not installed")
+
 from io import BytesIO
 import base64
 from pathlib import Path
 import os
 
-# Set style
-sns.set_style("whitegrid")
-plt.rcParams['figure.figsize'] = (10, 6)
-plt.rcParams['font.size'] = 10
+# Set style only if matplotlib is available
+if CHARTS_AVAILABLE:
+    sns.set_style("whitegrid")
+    plt.rcParams['figure.figsize'] = (10, 6)
+    plt.rcParams['font.size'] = 10
 
 class ChartGenerator:
 
@@ -28,6 +38,8 @@ class ChartGenerator:
     @staticmethod
     def _save_chart_base64() -> str:
         """Save current figure as base64 data URL"""
+        if not CHARTS_AVAILABLE:
+            return None
         buffer = BytesIO()
         plt.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
         buffer.seek(0)
