@@ -254,6 +254,59 @@ def serve_frontend():
         
     return send_from_directory(build_dir, 'index.html')
 
+@app.route('/api/debug-env', methods=['GET'])
+def debug_environment():
+    """Debug endpoint to check production environment issues"""
+    import sys
+    import platform
+    
+    debug_data = {
+        "python_version": sys.version,
+        "platform": platform.platform(),
+        "working_directory": os.getcwd(),
+        "environment_vars": {
+            "ANTHROPIC_API_KEY": "SET" if os.getenv('ANTHROPIC_API_KEY') else "MISSING",
+            "PORT": os.getenv('PORT', 'Not set'),
+            "FLASK_ENV": os.getenv('FLASK_ENV', 'Not set'),
+        },
+        "file_system": {
+            "data_dir_exists": os.path.exists('data') or os.path.exists('../data'),
+            "csv_file_exists": os.path.exists('data/Shaggy_Shag_Archives_Final.csv') or os.path.exists('../data/Shaggy_Shag_Archives_Final.csv'),
+            "database_file_exists": os.path.exists('csa_archive.db'),
+        },
+        "imports_status": {},
+        "startup_errors": []
+    }
+    
+    # Test critical imports
+    try:
+        from anthropic import Anthropic
+        debug_data["imports_status"]["anthropic"] = "OK"
+    except Exception as e:
+        debug_data["imports_status"]["anthropic"] = f"FAILED: {e}"
+    
+    try:
+        import pandas
+        debug_data["imports_status"]["pandas"] = "OK"
+    except Exception as e:
+        debug_data["imports_status"]["pandas"] = f"FAILED: {e}"
+        
+    # Test Anthropic client creation
+    try:
+        if os.getenv('ANTHROPIC_API_KEY'):
+            test_client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+            debug_data["anthropic_client"] = "Can create client"
+        else:
+            debug_data["anthropic_client"] = "No API key to test"
+    except Exception as e:
+        debug_data["anthropic_client"] = f"Client creation failed: {e}"
+    
+    return jsonify({
+        "status": "debug_info",
+        "message": "Production environment diagnostic data",
+        "debug": debug_data
+    })
+
 @app.route('/debug-files')
 def debug_files():
     """Debug endpoint to check what files actually exist"""
