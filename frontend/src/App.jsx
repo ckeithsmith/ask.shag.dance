@@ -31,13 +31,6 @@ function App() {
 
   // Initialize authentication on startup - ONCE ONLY with multiple safeguards
   useEffect(() => {
-    if (authInitialized || authInProgress || globalAuthInProgress) return; // Prevent multiple initializations
-    
-    globalAuthInProgress = true;
-    setAuthInProgress(true);
-    
-    console.log('🔐 Initializing authentication - should happen only once');
-    
     const storedUser = localStorage.getItem('csaUserInfo');
     if (storedUser) {
       try {
@@ -57,10 +50,7 @@ function App() {
       console.log('👤 New user detected, showing registration');
     }
     setAuthInitialized(true);
-    setAuthInProgress(false);
-    globalAuthInProgress = false;
-    console.log('🔐 Authentication initialization complete');
-  }, [authInitialized, authInProgress]);
+  }, []); // Empty dependency array - run only once on mount
 
   useEffect(() => {
     // Load suggested questions on startup
