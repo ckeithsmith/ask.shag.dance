@@ -11,9 +11,13 @@ import os
 from datetime import datetime
 
 class SimpleDailyLimiter:
-    def __init__(self, db_path: str, daily_limit: int = 50):
+    def __init__(self, db_path: str, daily_limit: int = None):
         self.db_path = db_path
-        self.daily_limit = daily_limit
+        # Get daily limit from environment variable with fallback to default
+        if daily_limit is None:
+            self.daily_limit = int(os.getenv('DAILY_MESSAGE_LIMIT', '25'))
+        else:
+            self.daily_limit = daily_limit
         self.init_table()
     
     def init_table(self):

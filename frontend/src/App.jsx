@@ -3,6 +3,7 @@ import './App.css';
 import ChatMessage from './components/ChatMessage';
 import ChatInput from './components/ChatInput';
 import LoadingSpinner from './components/LoadingSpinner';
+import DailyLimitModal from './components/DailyLimitModal';
 import * as api from './services/api';
 
 function App() {
@@ -10,6 +11,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestedQuestions, setSuggestedQuestions] = useState([]);
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  const [dailyLimitModal, setDailyLimitModal] = useState({ isOpen: false, message: '', dailyLimit: 0, currentCount: 0 });
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -62,15 +64,37 @@ function App() {
     } catch (error) {
       console.error('Error getting response:', error);
       
-      const errorMessage = {
-        id: Date.now() + 1,
-        text: `Sorry, I encountered an error: ${error.message}. Please try again or check if the service is available.`,
-        sender: 'assistant',
-        timestamp: new Date(),
-        isError: true
-      };
+      // Check if this is a daily limit error
+      if (error.message.includes('daily_limit_reached') || error.message.includes('Daily message limit')) {
+        // Try to parse response for modal info
+        try {
+          const errorResponse = JSON.parse(error.message.split(': ').slice(1).join(': '));
+          setDailyLimitModal({
+            isOpen: true,
+            message: errorResponse.modal_message || errorResponse.message,
+            dailyLimit: errorResponse.daily_limit,
+            currentCount: errorResponse.current_count
+          });
+        } catch {
+          // Fallback if parsing fails
+          setDailyLimitModal({
+            isOpen: true,
+            message: "This is a free service paid for by personal funds and is therefore limited to a fixed budget per day. The budget has been hit for today. Please try again tomorrow with your questions.",
+            dailyLimit: null,
+            currentCount: null
+          });
+        }
+      } else {
+        const errorMessage = {
+          id: Date.now() + 1,
+          text: `Sorry, I encountered an error: ${error.message}. Please try again or check if the service is available.`,
+          sender: 'assistant',
+          timestamp: new Date(),
+          isError: true
+        };
 
-      setMessages(prev => [...prev, errorMessage]);
+        setMessages(prev => [...prev, errorMessage]);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -84,6 +108,14 @@ function App() {
 
   return (
     <div className="App flex flex-col min-h-screen">
+      {/* Daily Limit Modal */}
+      <DailyLimitModal 
+        isOpen={dailyLimitModal.isOpen}
+        onClose={() => setDailyLimitModal(prev => ({ ...prev, isOpen: false }))}
+        message={dailyLimitModal.message}
+        dailyLimit={dailyLimitModal.dailyLimit}
+        currentCount={dailyLimitModal.currentCount}
+      />
       {/* Header */}
       <header className="bg-blue-600 text-white p-4 shadow-lg">
         <div className="max-w-4xl mx-auto">

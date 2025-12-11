@@ -28,6 +28,10 @@ export const askQuestion = async (question, userContact = 'Anonymous', sessionId
       throw new Error('Request timed out. The query might be too complex. Please try a simpler question.');
     }
     if (error.response?.status === 429) {
+      // Check if it's a daily limit error
+      if (error.response?.data?.error === 'daily_limit_reached') {
+        throw new Error(`daily_limit_reached: ${JSON.stringify(error.response.data)}`);
+      }
       throw new Error('Rate limit exceeded. Please wait before asking another question.');
     }
     if (error.response?.status === 500) {

@@ -21,9 +21,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app = Flask(__name__, static_folder=None)  # Disable Flask's default static handling
 CORS(app)
 
-# Initialize simple daily limiter - 50 messages total per day
+# Initialize simple daily limiter - reads from DAILY_MESSAGE_LIMIT env var (default: 25)
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'csa_archive.db')
-simple_limiter = SimpleDailyLimiter(DATABASE_PATH, daily_limit=50)
+simple_limiter = SimpleDailyLimiter(DATABASE_PATH)
 
 # Initialize data on startup
 def initialize_data():
@@ -67,7 +67,7 @@ def health_check():
     })
 
 @app.route('/api/ask', methods=['POST'])
-@rate_limit(max_requests=5, window_minutes=1)
+@rate_limit(max_requests=3, window_minutes=1)
 def ask_question():
     """Main chat endpoint"""
     start_time = time.time()
@@ -104,8 +104,9 @@ def ask_question():
         if not limit_check['allowed']:
             logging.warning(f"⛔ Daily limit hit: {limit_check['message']}")
             return jsonify({
-                "error": "Daily message limit reached",
-                "message": limit_check['message'],
+                "error": "daily_limit_reached",
+                "message": "This is a free community service with a daily message limit to manage costs. Please try again tomorrow!",
+                "modal_message": "This is a free service paid for by personal funds and is therefore limited to a fixed budget per day. The budget has been hit for today. Please try again tomorrow with your questions.",
                 "retry_after": "Tomorrow (limits reset at midnight)",
                 "current_count": limit_check['current_count'],
                 "daily_limit": limit_check['daily_limit']
