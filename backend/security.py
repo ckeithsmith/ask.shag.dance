@@ -14,7 +14,7 @@ BLOCKED_PATTERNS = [
     "bulk export", "data dump", "full archive"
 ]
 
-def rate_limit(max_requests=10, window_minutes=1):
+def rate_limit(max_requests=3, window_minutes=1):
     """Rate limiting decorator"""
     def decorator(func):
         @wraps(func)
