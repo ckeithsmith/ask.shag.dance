@@ -57,6 +57,9 @@ yarn-error.log*
 /build
 /dist
 
+# Exception: Keep frontend build for Heroku deployment
+!/frontend/build
+
 # Cache directories
 .cache/
 .parcel-cache/
